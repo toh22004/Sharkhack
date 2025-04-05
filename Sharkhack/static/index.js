@@ -41,29 +41,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.querySelector('form').onsubmit = (event) => {
         event.preventDefault();
-        let message = document.getElementsByName('message')[0].value;
-        let level = document.getElementsByName('level')[0].value;
-        let mood = document.getElementsByName('mood')[0].value;
         let goal = document.getElementsByName('goal')[0].value;
-        let performance = document.getElementsByName('performance')[0].value;
+        let equipment = document.getElementsByName('equipment')[0].value;
+        let mood = document.getElementsByName('mood')[0].value;
+        let focus = document.getElementsByName('focus')[0].value;
+        let duration = document.getElementsByName('duration')[0].value;
     
-        fetch('/api/ai/assist', {
+        fetch('/api/ai/generate-workout', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                message: message,
-                level: level,
-                mood: mood,
                 goal: goal,
-                performance: performance
+                equipment: equipment,
+                mood: mood,
+                focus: focus,
+                duration: duration
             })
         })
         .then(response => response.json())
         .then(result => {
-            console.log(result);
-            document.querySelector('#content').innerHTML = result["response"];
+            console.log(result["updated_plan"]["raw_response"]);
+            document.querySelector('#content').innerHTML = result["updated_plan"]["raw_response"];
           });
     }
 });
