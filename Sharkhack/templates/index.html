@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>GymBro</title>
+        <link rel="stylesheet" href="static/styles.css">
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+        <script src="static/index.js"></script>
+    </head>
+    <body>
+        <h1>Welcome!</h1>
+        <div id="main-interface">
+            <h2>GymBro - Your Trusted Trainer</h2>
+            <button class="btn btn-sm btn-outline-primary" id="menu" style="margin: 18px;">Main Menu</button>
+            <button class="btn btn-sm btn-outline-primary" id="workout" style="margin: 18px;">Workout</button>
+            <button class="btn btn-sm btn-outline-primary" id="diet" style="margin: 12px;">Diet</button>
+            <button class="btn btn-sm btn-outline-primary" id="profile" style="margin: 6px;">Profile</button>
+            <button class="btn btn-sm btn-outline-primary" id="about" style="margin: 18px;">About</button>
+            <a class="btn btn-sm btn-outline-primary" id="logout" style="margin: 6px;" href="/logout">Logout</a><br><br>
+        </div>
+
+        <br>
+
+        <div class="sections" id="menu-view" style="display: block;">
+            <h3>Menu.</h3>
+            <h3 id="showcase1">This is a very and very long text</h3>
+            <img id="showcase2" src="https://imgs.search.brave.com/1waj7NzVf-Hj7aUdGjhHZM3CJ7QJvPOdM1dMd7dKItw/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9tZWRp/YS5nZXR0eWltYWdl/cy5jb20vaWQvMTA3/MDc1NTIxMi9waG90/by9tYW4td29ya291/dC1pbi1neW0uanBn/P3M9NjEyeDYxMiZ3/PTAmaz0yMCZjPWdH/Qm9GaGpLaXVPNERs/WE1JX0VOSnZyWXlN/SzFLbXMyUjFuNXJv/Y0FSZU09">
+            <h4 id="showcase3">This is also a very and very long text</h4>
+            <img id="showcase4" src="https://imgs.search.brave.com/aIl3CVpOm9H9WybeFhSPC7zirJe3wEKFAmidgujfN8o/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9tZWRp/YS5nZXR0eWltYWdl/cy5jb20vaWQvMTQz/MDkyMTY1OS9waG90/by9hcnRpZmljaWFs/LWludGVsbGlnZW5j/ZS1yb2JvdC1hbmQt/YmluYXJ5LmpwZz9z/PTYxMng2MTImdz0w/Jms9MjAmYz1OV3g2/aEhhMHZLUU41d0No/QTRYbFlkRnJaSkJv/dWVnaWRPLUdfQllM/bGhvPQ">
+        </div>
+
+        <div class="sections" id="workout-view" style="display: none;">
+            <h3>Workout.</h3>
+
+            <form id="workout-form"> <!--  action="api/ai/assist" method="post" id="workout-form" -->
+                <input type="text" name="message" style="font-size: 25px; margin-top: 3%;" placeholder="Message: "><br>
+                <input type="text" name="level" style="font-size: 25px; margin-top: 3%;" placeholder="Level: "><br>
+                <input type="text" name="mood" style="font-size: 25px; margin-top: 3%;" placeholder="Mood: "><br>
+                <input type="text" name="goal" style="font-size: 25px; margin-top: 3%;" placeholder="Goal: "><br>
+                <input type="text" name="performance" style="font-size: 25px; margin-top: 3%;" placeholder="Performance: "><br><br>
+                <input type="submit" value="Submit"><br><br>
+            </form>
+
+            <p id="content" style="width: 100%;"></p>
+        </div>
+
+        <div class="sections" id="diet-view" style="display: none;">
+            <h3>Diet.</h3>
+        </div>
+
+        <div class="sections" id="profile-view" style="display: none;">
+            {% if h_username %}
+                <h3>Hello, {{ h_username }}</h3>
+                <p>Email: {{ h_email }}</p>
+            {% else %}
+                <p>No user data found</p>
+            {% endif %}
+        </div>
+
+        <div class="sections" id="about-view" style="display: none;">
+            <h3>About.</h3>
+        </div>
+    </body>
+</html>
