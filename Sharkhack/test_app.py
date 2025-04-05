@@ -66,7 +66,8 @@ def check_user():
     if "user" in session:
         username = session["user"]
         user = users_collection.find_one({"username": username})
-        return render_template("index.html", h_username=username, h_email=user.get("email", "")) 
+        age = calculate_age(user.get("dob",""))
+        return render_template("index.html", h_username=username, h_email=user.get("email", ""), h_age=age, h_weight=user.get("weight")) 
     else:
         return redirect("/login")
 
@@ -195,60 +196,101 @@ def generate_workout():
     Generates a personalized workout plan using the detailed prompt structure.
     Attempts to return structured JSON if the AI provides it.
     """
+
+    # --- Authentication Check ---
+    if "user" not in session:
+        return jsonify({'error': 'User not logged in'}), 401
+    username = session["user"]
+    # --- End Authentication Check ---
+
     data = request.json
     if not data:
         return jsonify({'error': 'Missing request body'}), 400
 
-    # Extract user profile and goal information from the request data
-    # Use .get() with defaults for robustness
-    user_profile = {
-        'age': data.get('age', 'N/A'),
-        'sex': data.get('sex', 'N/A'),
-        'weight': data.get('weight', 'N/A'),
-        'height': data.get('height', 'N/A'),
-        'experience': data.get('level', 'Beginner'), # Map 'level' to 'experience'
-        'phase': data.get('phase', 'Maintenance') # Assuming 'phase' might be part of user profile
-    }
-    goals = data.get('goal', 'General Fitness')
-    category = data.get('equipment', 'Bodyweight') # Map 'equipment' to 'category'
-    current_mood = data.get('mood', None) # Expecting a number 1-10, or None
-    mood_context = data.get('mood_context', '') # Optional textual context for mood
-    history = data.get('history', None) # Optional summary of recent workouts
-    focus_area = data.get('focus', 'Full Body') # Added focus
-    duration = data.get('duration', 30) # Added duration
+    # --- Fetch User Data from DB ---
+    user_data = users_collection.find_one({"username": username})
+    user_age = 'N/A'
+    user_sex = 'N/A'
+    workout_history_summary = 'None available'
 
-    # Construct the detailed prompt using the new structure
+    if user_data:
+        user_dob = user_data.get('dob')
+        user_sex = user_data.get('sex', 'N/A')
+        user_age = calculate_age(user_dob) # Use the helper function
+
+        # Fetch and format workout history
+        history_list = user_data.get('workout_history', [])
+        if history_list: # Should be sorted newest first if using $push/$slice correctly
+            summary_parts = []
+            # Take the most recent few (e.g., last 3) for the summary to keep prompt concise
+            for entry in history_list[:3]: # Limit summary to last 3 workouts
+                 ts = entry.get('timestamp', 'Unknown time')
+                 feedback = entry.get('feedback', {})
+                 plan_name = entry.get('workout_plan', {}).get('plan_name', 'Unnamed Plan')
+                 difficulty = feedback.get('difficulty_rating', 'N/A')
+                 completed = feedback.get('completed', 'N/A')
+                 notes = feedback.get('notes', '')
+
+                 # Format timestamp nicely
+                 ts_str = ts.strftime('%Y-%m-%d') if isinstance(ts, datetime.datetime) else str(ts)
+
+                 summary_parts.append(
+                     f"- {ts_str}: '{plan_name}' (Completed: {completed}, Difficulty: {difficulty}/10). Notes: '{notes[:50]}{'...' if len(notes)>50 else ''}'"
+                 )
+            if summary_parts:
+                workout_history_summary = "\n".join(summary_parts)
+            else:
+                workout_history_summary = "No recent workout feedback recorded."
+
+    else:
+        logging.warning(f"Could not find profile data for user: {username}")
+        # Proceed with defaults or return error? Let's proceed with defaults from request.
+
+    # --- Extract goal/preferences from the current request ---
+    experience_level = data.get('level', 'Beginner')
+    goals = data.get('goal', 'General Fitness')
+    category = data.get('equipment', 'Bodyweight')
+    current_mood = data.get('mood', None)
+    mood_context = data.get('mood_context', '')
+    focus_area = data.get('focus', 'Full Body')
+    duration = data.get('duration', 30)
+    # Use weight/height from request if provided, otherwise try DB (optional)
+    weight = data.get('weight', user_data.get('weight', 'N/A') if user_data else 'N/A')
+    height = data.get('height', 'N/A') # Assuming height isn't stored currently
+
+    # --- Construct the AI Prompt with fetched data ---
     prompt = f"""
     Generate a personalized workout plan for a user with the following profile:
-    - Age: {user_profile.get('age')}
-    - Sex: {user_profile.get('sex')}
-    - Weight: {user_profile.get('weight')} lbs
-    - Height: {user_profile.get('height')} ft'in"
-    - Experience Level: {user_profile.get('experience')}
-    - Goals: {goals} ({user_profile.get('phase')})
+    - Age: {user_age}
+    - Sex: {user_sex}
+    - Weight: {weight} lbs
+    - Height: {height} ft'in"
+    - Experience Level: {experience_level}
+    - Goals: {goals}
     - Desired Focus Area: {focus_area}
     - Desired Duration: Approximately {duration} minutes
     - Available Category/Equipment: {category}
-    - Recent Workout History Summary (if available): {history if history else 'None provided'}
     - Current Mood (1-10, 1=very bad, 10=very good): {current_mood if current_mood is not None else 'Not specified'}
     - Mood Context: {mood_context if mood_context else 'None'}
 
+    Recent Workout History Summary (Last 3 Sessions, Newest First):
+    {workout_history_summary}
+
     Constraints & Instructions:
-    - Generate the workout plan in JSON format as specified in the Example Output Format below.
-    - The workout MUST be suitable for the user's specified experience level, goals, equipment, focus, and duration.
-    - If mood is low (e.g., < 5), suggest a slightly less strenuous or shorter workout, potentially focusing on mobility or lighter exercises. Acknowledge the user's feeling in the 'mood_adjustment_note'.
-    - If the user is a beginner, prioritize simpler exercises and include clear, concise form tips.
-    - Provide exercises with sets, reps (or duration for time-based exercises), and rest periods.
-    - Structure the output strictly according to the JSON format provided.
+    - Generate the workout plan in the specified JSON format ONLY.
+    - The workout MUST be suitable for the user's profile (age, sex, experience), goals, equipment, focus, duration, and mood.
+    - Leverage the recent workout history: If the user found recent workouts too easy/hard, adjust accordingly. If they skipped workouts or noted issues, consider that.
+    - If mood is low (e.g., < 5), suggest a slightly less strenuous or shorter workout. Acknowledge this in 'mood_adjustment_note'.
+    - Provide exercises with sets, reps/duration, rest periods, and concise form tips, especially for beginners.
+    - Structure the output strictly according to the JSON format provided below.
     - Ensure the total estimated duration aligns roughly with the user's request.
-    - Avoid promoting unrealistic fitness standards. Focus on sustainable progress and health.
 
     Required Output Format (JSON only):
     {{
       "plan_name": "Personalized Workout for {focus_area}",
       "estimated_duration_minutes": {duration},
       "focus": "{focus_area}",
-      "mood_adjustment_note": "string (e.g., 'Adjusted for lower energy based on mood.' or empty '')",
+      "mood_adjustment_note": "string (e.g., 'Adjusted for lower energy based on mood.' or 'Slightly increased intensity based on recent feedback.' or '')",
       "warm_up": [
         {{"exercise": "string", "duration": "string (e.g., 60 seconds)", "reps": "string (optional)", "sets": "integer (optional)", "form_tip": "string (optional)"}}
       ],
@@ -260,108 +302,9 @@ def generate_workout():
       ]
     }}
     """
-    logging.info(f"Sending prompt to AI for /generate-workout: {prompt[:200]}...")
+    logging.info(f"Sending prompt to AI for /generate-workout: {prompt[:200]}...") # Log start of prompt
     response_text = ai_service.generate_response(prompt)
     logging.info("Received response from AI for /generate-workout.")
-
-    # Attempt to parse the response as JSON
-    try:
-        # The response might be wrapped in markdown ```json ... ```
-        if response_text.strip().startswith("```json"):
-            response_text = response_text.strip()[7:-3].strip() # Remove markdown fences
-        elif response_text.strip().startswith("{"):
-             response_text = response_text.strip() # Assume it's just JSON
-
-        workout_json = json.loads(response_text)
-        return jsonify({'workout': workout_json})
-    except json.JSONDecodeError:
-        logging.warning("AI response for workout plan was not valid JSON. Returning as text.")
-        # Fallback: return the raw text if JSON parsing fails
-        return jsonify({'workout': {'error': 'Failed to parse workout plan as JSON', 'raw_response': response_text}})
-    except Exception as e:
-        logging.error(f"Error processing AI response for workout plan: {e}")
-        return jsonify({'error': 'An unexpected error occurred processing the workout plan'}), 500
-
-
-@app.route('/api/ai/update-workout-plan', methods=['POST'])
-def update_workout_plan():
-    """
-    Adjusts a workout plan based on user feedback.
-    Uses a prompt inspired by the 'evolve_workout' concept.
-    """
-    data = request.json
-    if not data:
-        return jsonify({'error': 'Missing request body'}), 400
-
-    # Extract necessary info from request
-    current_plan_str = json.dumps(data.get('current_plan', {}), indent=2) # Pretty print JSON plan if available
-    feedback = {
-        'completed': data.get('completed', 'Not specified'),
-        'difficulty_rating': data.get('difficulty', 'Not specified'), # e.g., 1-10
-        'notes': data.get('notes', 'None')
-    }
-    user_profile = {
-        'level': data.get('level', 'Beginner'),
-        'goal': data.get('goal', 'General Fitness'),
-         # Add other relevant profile details if available
-        'experience': data.get('level', 'Beginner'), # Re-map for consistency
-        'phase': data.get('phase', 'Maintenance')
-    }
-
-    prompt = f"""
-    Task: Evolve the user's current workout plan based on their recent performance feedback and profile.
-
-    User Profile:
-    - Experience Level: {user_profile.get('experience')}
-    - Goal: {user_profile.get('goal')} ({user_profile.get('phase')})
-    - Other Profile Data: Consider other relevant factors if provided indirectly.
-
-    Current Workout Plan:
-    ```json
-    {current_plan_str if current_plan_str != "{}" else "No specific current plan provided."}
-    ```
-
-    Recent Performance Feedback:
-    - Completed Workout?: {feedback['completed']}
-    - User's Difficulty Rating (1-10, 1=easy, 10=very hard): {feedback['difficulty_rating']}
-    - User Notes/Feelings: {feedback['notes']}
-
-    Instructions:
-    1. Analyze the current plan and the user's feedback.
-    2. Suggest specific progressions or regressions based on feedback, difficulty, and completion status.
-    3. Consider the user's overall goal and experience level.
-    4. **Output Format:** Generate a JSON object with two keys: "explanation" and "updated_plan".
-       - The "explanation" value should be a string containing a brief reasoning for the changes, **formatted using simple HTML tags** (`<p>`, `<b>`, `<ul>`, `<li>`). Do not use Markdown.
-       - The "updated_plan" value should ideally be the *complete updated workout plan* in the **same JSON structure as the original plan** (see generate-workout format). If providing a full new plan JSON isn't feasible based on the feedback, this value can be a string containing a clear description of the suggested modifications, also **formatted using simple HTML**.
-    5. Ensure the JSON output is valid. Do not include any text outside the main JSON object.
-
-    Example Output Format (JSON only):
-    ```json
-    {{
-      "explanation": "<p>Based on your feedback (difficulty: {feedback['difficulty_rating']}), I've made some adjustments. Since you found it a bit easy, I've slightly increased the reps for some exercises.</p>",
-      "updated_plan": {{
-          "plan_name": "Adjusted Workout...",
-          "estimated_duration_minutes": ...,
-          "focus": "...",
-          "mood_adjustment_note": "",
-          "warm_up": [ ... ],
-          "main_workout": [ ... updated exercises ... ],
-          "cool_down": [ ... ]
-        }}
-    }}
-    ```
-    OR (if full plan generation isn't feasible):
-    ```json
-    {{
-      "explanation": "<p>Since you found the push-ups challenging, let's try reducing the reps slightly.</p>",
-      "updated_plan": "<p><b>Modification Suggestions:</b></p><ul><li>Reduce Push-up reps from 10-12 to 8-10.</li><li>Consider performing push-ups on your knees if needed.</li><li>Keep other exercises the same for now.</li></ul>"
-    }}
-    ```
-    """
-
-    logging.info(f"Sending prompt to AI for /update-workout-plan: {prompt[:200]}...")
-    response_text = ai_service.generate_response(prompt)
-    logging.info("Received response from AI for /update-workout-plan.")
 
     # Attempt to parse if response looks like JSON, otherwise return text
     try:

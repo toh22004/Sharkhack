@@ -21,7 +21,7 @@
         <br>
 
         <div class="sections" id="menu-view" style="display: block;">
-            <h3>Menu.</h3>
+            <h3>Menu</h3>
             <h3 id="showcase1">This is a very and very long text</h3>
             <img id="showcase2" src="https://imgs.search.brave.com/1waj7NzVf-Hj7aUdGjhHZM3CJ7QJvPOdM1dMd7dKItw/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9tZWRp/YS5nZXR0eWltYWdl/cy5jb20vaWQvMTA3/MDc1NTIxMi9waG90/by9tYW4td29ya291/dC1pbi1neW0uanBn/P3M9NjEyeDYxMiZ3/PTAmaz0yMCZjPWdH/Qm9GaGpLaXVPNERs/WE1JX0VOSnZyWXlN/SzFLbXMyUjFuNXJv/Y0FSZU09">
             <h4 id="showcase3">This is also a very and very long text</h4>
@@ -29,35 +29,39 @@
         </div>
 
         <div class="sections" id="workout-view" style="display: none;">
-            <h3>Workout.</h3>
+            <h3>Workout</h3>
 
             <form id="workout-form"> <!--  action="api/ai/assist" method="post" id="workout-form" -->
-                <input type="text" name="message" style="font-size: 25px; margin-top: 3%;" placeholder="Message: "><br>
-                <input type="text" name="level" style="font-size: 25px; margin-top: 3%;" placeholder="Level: "><br>
-                <input type="text" name="mood" style="font-size: 25px; margin-top: 3%;" placeholder="Mood: "><br>
                 <input type="text" name="goal" style="font-size: 25px; margin-top: 3%;" placeholder="Goal: "><br>
-                <input type="text" name="performance" style="font-size: 25px; margin-top: 3%;" placeholder="Performance: "><br><br>
+                <input type="text" name="equipment" style="font-size: 25px; margin-top: 3%;" placeholder="Equipment: "><br>
+                <input type="text" name="mood" style="font-size: 25px; margin-top: 3%;" placeholder="Mood: "><br>
+                <input type="text" name="focus" style="font-size: 25px; margin-top: 3%;" placeholder="Focus (muscle group): "><br>
+                <input type="text" name="duration" style="font-size: 25px; margin-top: 3%;" placeholder="Duration (mins): "><br><br>
                 <input type="submit" value="Submit"><br><br>
             </form>
 
-            <p id="content" style="width: 100%;"></p>
+            <p id="content" style="width: 45%;"></p>
         </div>
 
         <div class="sections" id="diet-view" style="display: none;">
-            <h3>Diet.</h3>
+            <h3>Diet</h3>
         </div>
 
         <div class="sections" id="profile-view" style="display: none;">
             {% if h_username %}
-                <h3>Hello, {{ h_username }}</h3>
-                <p>Email: {{ h_email }}</p>
+                <h3>Hello, {{ h_username }}</h3><br>
+                <h4>Email: {{ h_email }}</h4><br>
+                <h4>Current weight: {{ h_weight }} lbs</h4><br>
+                <h4>Age: {{ h_age }}</h4><br>
             {% else %}
-                <p>No user data found</p>
+                <h2>No user data found</h2><br>
             {% endif %}
         </div>
 
         <div class="sections" id="about-view" style="display: none;">
-            <h3>About.</h3>
+            <h3>About</h3>
+            <h4 style="width: 45%;">GymBro is here to help you with your Fitness Ambitions.</h4>
+            <h5></h5>
         </div>
     </body>
 </html>
