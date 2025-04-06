@@ -31,7 +31,7 @@
         <div class="sections" id="workout-view" style="display: none;">
             <h3>Workout</h3>
 
-            <form id="workout-form"> <!--  action="api/ai/assist" method="post" id="workout-form" -->
+            <form id="workout-form" style="display: block;">
                 <input type="text" name="goal" style="font-size: 25px; margin-top: 3%;" placeholder="Goal: "><br>
                 <input type="text" name="equipment" style="font-size: 25px; margin-top: 3%;" placeholder="Equipment: "><br>
                 <input type="text" name="mood" style="font-size: 25px; margin-top: 3%;" placeholder="Mood: "><br>
@@ -41,10 +41,14 @@
             </form>
 
             <p id="content" style="width: 45%;"></p>
+
+            <input id="workout-start" type="submit" value="Finish workout!" style="display: none;">
         </div>
 
         <div class="sections" id="diet-view" style="display: none;">
             <h3>Diet</h3>
+            <h3>Based on your age, body mass, and current goals:</h3>
+            
         </div>
 
         <div class="sections" id="profile-view" style="display: none;">
@@ -53,6 +57,8 @@
                 <h4>Email: {{ h_email }}</h4><br>
                 <h4>Current weight: {{ h_weight }} lbs</h4><br>
                 <h4>Age: {{ h_age }}</h4><br>
+                <h4>Sex: {{ h_sex }}</h4><br>
+
             {% else %}
                 <h2>No user data found</h2><br>
             {% endif %}

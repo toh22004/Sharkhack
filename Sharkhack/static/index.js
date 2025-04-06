@@ -63,8 +63,30 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(result => {
             console.log(result["updated_plan"]["raw_response"]);
+            console.log(result["updated_plan"]["raw_response"]);
             document.querySelector('#content').innerHTML = result["updated_plan"]["raw_response"];
+            document.querySelector('#workout-form').style.display = 'none';
+            document.querySelector('#workout-start').style.display = 'block';
           });
+    }
+
+    document.querySelector('#workout-start').onsubmit = (event) => {
+        event.preventDefault();
+        // completed ... difficulty_rating ... notes
+        let completed = "";
+        let difficulty_rating = "";
+        let notes = "";
+        fetch('/api/ai/update-workout-plan', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                completed: completed,
+                difficulty_rating: difficulty_rating,
+                notes: notes
+            })
+        })
     }
 });
 

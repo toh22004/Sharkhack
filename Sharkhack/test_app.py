@@ -5,6 +5,7 @@ from pymongo.server_api import ServerApi
 import json # For parsing potential JSON responses from AI
 import logging # For better logging
 import datetime
+import pytz # For timezone handling
 
 # --- Helper Function ---
 def calculate_age(dob_str):
@@ -67,7 +68,7 @@ def check_user():
         username = session["user"]
         user = users_collection.find_one({"username": username})
         age = calculate_age(user.get("dob",""))
-        return render_template("index.html", h_username=username, h_email=user.get("email", ""), h_age=age, h_weight=user.get("weight")) 
+        return render_template("index.html", h_username=username, h_email=user.get("email", ""), h_age=age, h_weight=user.get("weight"), h_sex=user.get("sex")) 
     else:
         return redirect("/login")
 
@@ -326,6 +327,181 @@ def generate_workout():
         logging.error(f"Error processing AI response for plan update: {e}")
         return jsonify({'error': 'An unexpected error occurred processing the plan update'}), 500
 
+@app.route('/api/ai/update-workout-plan', methods=['POST'])
+def update_workout_plan():
+    """
+    Receives feedback on a completed workout, SAVES it to history,
+    and asks the AI to suggest modifications for the next workout.
+    """
+    # --- Authentication Check ---
+    if "user" not in session:
+        return jsonify({'error': 'User not logged in'}), 401
+    username = session["user"]
+    # --- End Authentication Check ---
+
+    data = request.json
+    if not data:
+        return jsonify({'error': 'Missing request body'}), 400
+
+    # Extract necessary info from request
+    # 'current_plan' is the JSON of the workout the user *just finished*
+    current_plan = data.get('current_plan', None)
+    # 'feedback' contains user's input about the completed workout
+    feedback = data.get('feedback', None)
+
+    # Validate input
+    if not current_plan or not isinstance(current_plan, dict):
+         return jsonify({'error': 'Missing or invalid "current_plan" in request body'}), 400
+    if not feedback or not isinstance(feedback, dict):
+        return jsonify({'error': 'Missing or invalid "feedback" in request body'}), 400
+
+    # Expected feedback keys (adjust as needed based on your frontend)
+    completed_status = feedback.get('completed', 'Not specified')
+    difficulty_rating = feedback.get('difficulty_rating', 'Not specified')
+    notes = feedback.get('notes', '')
+
+    # --- Save Workout History ---
+    history_entry = {
+        "timestamp": datetime.datetime.now(pytz.utc), # Use timezone-aware UTC time
+        "workout_plan": current_plan, # The plan that was just done
+        "feedback": { # Standardize feedback structure
+            "completed": completed_status,
+            "difficulty_rating": difficulty_rating,
+            "notes": notes
+        }
+        # Optionally add user context at the time of workout if needed
+        # "user_context": {"level": data.get('level'), "goal": data.get('goal')}
+    }
+
+    try:
+        result = users_collection.update_one(
+            {"username": username},
+            {
+                "$push": {
+                    "workout_history": {
+                        "$each": [history_entry],
+                        "$slice": -7 # Keep only the last 7 elements
+                    }
+                }
+            }
+        )
+        if result.matched_count == 0:
+             logging.warning(f"Attempted to save history for non-existent user: {username}")
+             # Don't proceed if user doesn't exist
+             return jsonify({'error': 'User profile not found for saving history'}), 404
+        elif result.modified_count == 0 and result.upserted_id is None:
+             # This might happen if the update didn't change anything, which is unlikely with $push
+             # unless the document structure is wrong or there's a concurrent modification issue.
+             logging.warning(f"Workout history might not have been saved for user {username}. Result: {result.raw_result}")
+        else:
+             logging.info(f"Saved workout history for user: {username}")
+
+    except Exception as e:
+        logging.error(f"Error saving workout history for {username}: {e}")
+        # Decide if you should still proceed to get AI feedback or return an error
+        return jsonify({'error': f'Failed to save workout history: {e}'}), 500
+    # --- End Save Workout History ---
+
+
+    # --- Prepare Prompt for AI (Suggesting next steps/plan) ---
+    # Fetch user profile data again for the AI prompt context if needed
+    # Or use context sent with the request (e.g., user's current stated level/goal)
+    user_profile_context = {
+        'level': data.get('level', 'Beginner'), # Use level sent with feedback request
+        'goal': data.get('goal', 'General Fitness'),
+    }
+    current_plan_str = json.dumps(current_plan, indent=2) # Pretty print for the prompt
+
+    prompt = f"""
+    Task: Evolve the user's workout approach based on their recent performance feedback.
+
+    User Profile Context (provided with feedback):
+    - Experience Level: {user_profile_context.get('level')}
+    - Goal: {user_profile_context.get('goal')}
+
+    Workout Plan Just Completed:
+    ```json
+    {current_plan_str}
+    ```
+
+    User's Feedback on Completed Workout:
+    - Completed?: {completed_status}
+    - Difficulty Rating (1-10, 1=easy, 10=very hard): {difficulty_rating}
+    - User Notes/Feelings: {notes}
+
+    Instructions:
+    1. Analyze the completed plan and the user's feedback.
+    2. Suggest specific progressions or regressions for the *next* workout. Consider difficulty, completion status, and user notes.
+    3. Keep suggestions aligned with the user's goal and experience level.
+    4. **Output Format:** Generate a JSON object with two keys: "explanation" and "updated_plan".
+       - "explanation": String with brief reasoning for the suggestions (use simple HTML: <p>, <b>, <ul>, <li>).
+       - "updated_plan": This should be the *complete updated workout plan JSON* for the *next* session, following the same structure as the generate-workout output. If generating a full plan isn't feasible based only on feedback (e.g., need more user input), provide clear modification suggestions as an HTML string within this key.
+    5. Ensure valid JSON output. No text outside the main JSON object.
+
+    Example Output (Full Plan Update):
+    ```json
+    {{
+      "explanation": "<p>Based on your feedback (difficulty: {difficulty_rating}), I've adjusted your next workout. Since you found it manageable, I've slightly increased reps.</p>",
+      "updated_plan": {{
+          "plan_name": "Progressed Workout for [Focus]",
+          "estimated_duration_minutes": ...,
+          "focus": "...",
+          "mood_adjustment_note": "",
+          "warm_up": [ ... ],
+          "main_workout": [ ... updated exercises ... ],
+          "cool_down": [ ... ]
+        }}
+    }}
+    ```
+    Example Output (Modification Suggestions):
+    ```json
+    {{
+      "explanation": "<p>Since you found the {feedback.get('notes', 'exercise')} challenging, let's try modifying it next time.</p>",
+      "updated_plan": "<p><b>Next Workout Suggestions:</b></p><ul><li>Reduce reps for [Exercise] to X-Y.</li><li>Consider substituting [Exercise] with [Alternative Exercise].</li><li>Keep other parts the same.</li></ul>"
+    }}
+    ```
+    """
+
+    logging.info(f"Sending prompt to AI for /update-workout-plan for user {username}: {prompt[:200]}...")
+    response_text = ai_service.generate_response(prompt)
+    logging.info(f"Received response from AI for /update-workout-plan for user {username}.")
+
+    # --- Process AI Response ---
+    try:
+        # Clean potential markdown
+        if response_text.strip().startswith("```json"):
+             response_text = response_text.strip()[7:-3].strip()
+        elif response_text.strip().startswith("{"):
+            response_text = response_text.strip()
+        else:
+            logging.error(f"AI response for plan update was not JSON for user {username}. Response: {response_text[:100]}")
+            # Return explanation but indicate plan couldn't be parsed
+            return jsonify({
+                'explanation': '<p>AI response received, but the updated plan format was invalid.</p>',
+                'updated_plan': {'error': 'Failed to parse plan update as JSON', 'raw_response': response_text}
+            })
+
+        update_json = json.loads(response_text)
+        # Validate the structure of the AI response if possible
+        if "explanation" not in update_json or "updated_plan" not in update_json:
+             logging.warning(f"AI response for plan update missing required keys for user {username}. Response: {update_json}")
+             return jsonify({
+                'explanation': '<p>AI response is missing expected structure.</p>',
+                'updated_plan': {'error': 'AI response format incorrect', 'raw_response': update_json}
+            })
+
+        # Return the structured JSON from the AI
+        return jsonify(update_json)
+
+    except json.JSONDecodeError:
+        logging.warning(f"AI response for plan update was not valid JSON for user {username}. Returning raw. Response: {response_text[:500]}")
+        return jsonify({
+             'explanation': '<p>AI response received, but it was not valid JSON.</p>',
+             'updated_plan': {'error': 'Failed to parse plan update as JSON', 'raw_response': response_text}
+         })
+    except Exception as e:
+        logging.error(f"Error processing AI response for plan update for user {username}: {e}")
+        return jsonify({'error': 'An unexpected error occurred processing the plan update'}), 500
 
 @app.route('/api/ai/analyze-meal', methods=['POST'])
 def analyze_meal():
