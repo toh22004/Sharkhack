@@ -490,7 +490,7 @@ def dashboard():
     # Optionally, fetch any common data for the dashboard
     return render_template("dashboard.html")
 
-@app.route("/dashboard/profile")
+@app.route("/dashboard/profile", methods=['GET', 'POST'])
 def dashboard_profile():
     if "user" not in session:
         flash("You need to log in first.", "error")
@@ -501,10 +501,81 @@ def dashboard_profile():
         flash("User not found.", "error")
         session.pop("user", None)  # Clear session if user not found
         return redirect("/login")
-    if request.method == 'POST':
-        pass
-    return render_template("dashboard_profile.html", user=user)
+    
+    age = calculate_age(user.get("dob"))
+    return render_template("dashboard_profile.html",
+                           h_username=user.get("username"),
+                           h_email=user.get("email"),
+                           h_weight=user.get("weight"),
+                           h_age=age,
+                           h_sex=user.get("sex"),
+                           height_inches=user.get('height_inches'),
+                           h_activity_level=user.get("activity_level"),
+                           h_fitness_goal=user.get("fitness_goal"),
+                           user=user)
 
+@app.route("/dashboard/profile/update", methods=['GET','POST'])   
+def profile_update():
+    if "user" not in session:
+        flash("You need to log in first.", "error")
+        return redirect("/login")
+    
+    username = session["user"]
+    user = users_collection.find_one({"username": username})
+    
+    if not user:
+        flash("User not found.", "error")
+        session.pop("user", None)
+        return redirect("/login")
+    try:
+        updateData = {}
+        updateData["email"] = request.form.get("email",user.get("email"))
+        updateData["weight"] = request.form.get("weight",user.get("weight"))
+        updateData["height_inches"] = request.form.get("height_inches",user.get("height_inches"))
+        updateData["activity_level"] = request.form.get("activity_level",user.get("activity_level"))
+        updateData["fitness_goal"] = request.form.get("fitness_goal",user.get("fitness_goal"))
+            # --- Raw Text Data ---
+        health_raw_text = request.form.get('health_concerns_raw', '')
+        diet_raw_text = request.form.get('dietary_restrictions_raw', '')
+        allergy_raw_text = request.form.get('allergies_raw', '')
+        
+        health_raw = [line.strip() for line in health_raw_text.splitlines() if line.strip()]
+        diet_raw = [line.strip() for line in diet_raw_text.splitlines() if line.strip()]
+        allergy_raw = [line.strip() for line in allergy_raw_text.splitlines() if line.strip()]
+        
+        updateData['health_concerns_raw'] = health_raw
+        updateData['dietary_restrictions_raw'] = diet_raw
+        updateData['allergies_raw'] = allergy_raw
+
+        # --- Perform AI Normalization ---
+        health_normalized = normalize_user_text_input(ai_service, health_raw, 'health concerns', ALLOWED_HEALTH_KEYWORDS)
+        diet_normalized = normalize_user_text_input(ai_service, diet_raw, 'dietary restrictions', ALLOWED_DIETARY_KEYWORDS)
+        allergy_normalized = normalize_user_text_input(ai_service, allergy_raw, 'allergies', ALLOWED_ALLERGY_KEYWORDS)
+        
+        updateData['health_concerns_normalized'] = health_normalized
+        updateData['dietary_restrictions_normalized'] = diet_normalized
+        updateData['allergies_normalized'] = allergy_normalized
+
+        # --- Recalculate Dietary Goals ---
+        potential_calc_input = user.copy()
+        potential_calc_input.update(updateData)
+        new_goals = calculate_dietary_goals(potential_calc_input)
+        if new_goals:
+            updateData['dietary_goals'] = new_goals
+        else:
+            updateData['dietary_goals'] = user.get('dietary_goals')
+
+        # --- Update the Database ---
+        users_collection.update_one({"username": username}, {"$set": updateData})
+        flash("Profile updated successfully!", "success")
+        return redirect("/dashboard/profile")
+    except (ValueError, TypeError) as e:
+        flash(f"Invalid input during profile update: {e}", "error")
+    except Exception as e:
+        logging.error(f"Error updating profile for {username}: {e}")
+        flash("An error occurred while updating your profile.", "error")
+    return render_template("profile_update.html",user=user,
+                           height_inches=user.get('height_inches'))
 @app.route("/dashboard/workout")
 def dashboard_workout():
     if "user" not in session:

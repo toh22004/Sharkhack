@@ -20,25 +20,24 @@
         </div>
 
         <br>
-        
-
-
+    
         <!-- Profile -->
 
         <div class="sections" id="profile-view">
-          {% if h_username %}
-              <h3>Hello, {{ h_username }}</h3><br>
-              <h4>Email: {{ h_email }}</h4><br>
-              <h4>Current weight: {{ h_weight }} lbs</h4><br>
-              <h4>Age: {{ h_age }}</h4><br>
-              <h4>Sex: {{ h_sex }}</h4><br>
-
-          {% else %}
-              <h2>No user data found</h2><br>
+            {% if h_username %}
+                <h3>Hello, {{ h_username }}</h3><br>
+                <h4>Email: {{ h_email }}</h4><br>
+                <h4>Current weight: {{ h_weight }} lbs</h4><br>
+                <h4>Age: {{ h_age }}</h4><br>
+                <h4>Sex: {{ h_sex }}</h4><br>
+                <h4>Height: {{ height_inches }}"</h4><br>
+                <h4>Activity Level: {{ h_activity_level }}</h4><br>
+                <h4>Fitness Goal: {{ h_fitness_goal }}</h4><br>
+                
+                <a href="/dashboard/profile/update" class="btn btn-outline-primary" id="update" style="margin: 6px;">Update Profile</a><br>
+            {% else %}
+                <h2>No user data found</h2><br>
           {% endif %}
       </div>
-
-
-
     </body>
     </html>
