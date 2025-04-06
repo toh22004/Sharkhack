@@ -1253,4 +1253,4 @@ if __name__ == '__main__':
     # Run the Flask app in debug mode for development (auto-reloads, more detailed errors)
     # Disable debug mode in production!
     # Consider specifying host='0.0.0.0' to make it accessible on your network
-    app.run(debug=True, port=5050) # Using port 5000 is common for Flask dev
+    app.run() # Using port 5000 is common for Flask dev
