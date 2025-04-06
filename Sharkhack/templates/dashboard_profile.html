@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>GymBro</title>
+        <link rel="stylesheet" href="/static/styles.css">
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+        <script src="/static/index.js"></script>
+    </head>
+    <body>
+        
+        <h1>Welcome!</h1>
+        <div id="main-interface">
+            <h2>GymBro - Your Trusted Trainer</h2>
+            <a href="/dashboard" class="btn btn-outline-primary" id="menu" style="margin: 18px;">Home</a>
+            <a href="/dashboard/workout" class="btn btn-outline-primary" id="workout" style="margin: 18px;">Workout</a>
+            <a href="/dashboard/diet" class="btn btn-outline-primary" id="diet" style="margin: 12px;">Diet</a>
+            <a href="/dashboard/profile" class="btn btn-outline-primary" id="profile" style="margin: 6px;">Profile</a>
+            <a href="/dashboard/about" class="btn btn-outline-primary" id="about" style="margin: 18px;">About</a>
+            <a href="/logout" class="btn btn-outline-danger" id="logout" style="margin: 6px;">Logout</a><br><br>
+        </div>
+
+        <br>
+        
+
+
+        <!-- Profile -->
+
+        <div class="sections" id="profile-view">
+          {% if h_username %}
+              <h3>Hello, {{ h_username }}</h3><br>
+              <h4>Email: {{ h_email }}</h4><br>
+              <h4>Current weight: {{ h_weight }} lbs</h4><br>
+              <h4>Age: {{ h_age }}</h4><br>
+              <h4>Sex: {{ h_sex }}</h4><br>
+
+          {% else %}
+              <h2>No user data found</h2><br>
+          {% endif %}
+      </div>
+
+
+
+    </body>
+    </html>

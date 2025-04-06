@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
+    /*
     document.querySelector('#menu').onclick = () => {
         document.querySelector('#menu-view').style.display = 'block';
         document.querySelector('#workout-view').style.display = 'none';
@@ -38,6 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelector('#profile-view').style.display = 'none';
         document.querySelector('#about-view').style.display = 'block';
     }
+        */
 
     document.querySelector('#workout-form').onsubmit = (event) => {
         event.preventDefault();
@@ -72,9 +74,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.querySelector('#workout-form2').onsubmit = (event) => {
         event.preventDefault();
-        let completed = document.getElementsByName('completed')[0].value;;
-        let difficulty_rating = document.getElementsByName('difficulty_rating')[0].value;;
-        let notes = document.getElementsByName('notes')[0].value;;
+        let completed = document.getElementsByName('completed')[0].value;
+        let difficulty_rating = document.getElementsByName('difficulty_rating')[0].value;
+        let notes = document.getElementsByName('notes')[0].value;
+        console.log(completed);
+        console.log(difficulty_rating);
+        console.log(notes);
+        console.log(typeof(notes));
+        console.log(notes === "");
         fetch('/api/ai/update-workout-plan', {
             method: 'POST',
             headers: {
@@ -90,6 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(result => {
             console.log(result);
             document.querySelector('#workout-form2').style.display = 'none';
+            document.querySelector('#content2').innerHTML = result;
         });
     }
 });

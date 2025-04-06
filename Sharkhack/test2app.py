@@ -5,7 +5,7 @@ from pymongo.server_api import ServerApi
 import json # For parsing potential JSON responses from AI
 import logging # For better logging
 import datetime
-import pytz # For timezone handling
+#import pytz # For timezone handling
 import math # For math operations
 import re # For regex operations
 import os # For environment variables (if needed)
@@ -256,7 +256,7 @@ def calculate_dietary_goals(user_data):
             "protein_grams": int(round(protein_grams)),
             "sodium_mg": int(round(sodium_mg)),
             "water_liters": round(water_liters, 1),
-            "last_calculated": datetime.datetime.now(pytz.utc)
+            #"last_calculated": datetime.datetime.now(pytz.utc)
         }
         logging.info(f"Calculated dietary goals for {user_data.get('username')}: {goals}")
         return goals
@@ -380,14 +380,11 @@ def check_password(username, input_password):
     else:
         print(f"User '{username}' not found!")
         return False
-
+#This is the default page, it will check if the user is logged in and will redirect to dashboard and if not, redirect to the login screen.
 @app.route("/")
 def check_user():
     if "user" in session:
-        username = session["user"]
-        user = users_collection.find_one({"username": username})
-        age = calculate_age(user.get("dob",""))
-        return render_template("index.html", h_username=username, h_email=user.get("email", ""), h_age=age, h_weight=user.get("weight"), h_sex=user.get("sex")) 
+        return redirect("/dashboard")
     else:
         return redirect("/login")
 
@@ -464,7 +461,7 @@ def login():
         if check_password(username, password):
             session["user"] = username  # Store username in session
             flash("Login successful!", "success")
-            return redirect("/")  # Redirect to a protected page
+            return redirect("/dashboard")  # Redirect to a protected page
         else:
             # Determine why check_password failed
             user = users_collection.find_one({"username": username})
@@ -485,105 +482,50 @@ def logout():
     session.pop("user", None)
     flash("You have been logged out.")
     return redirect("/login")
-# --- AI Endpoints ---
 
-@app.route("/profile", methods=['GET', 'POST'])
-def profile():
+@app.route("/dashboard")
+def dashboard():
     if "user" not in session:
-        flash("Please log in to view your profile.", "warning")
         return redirect("/login")
+    # Optionally, fetch any common data for the dashboard
+    return render_template("dashboard.html")
 
+@app.route("/dashboard/profile")
+def dashboard_profile():
+    if "user" not in session:
+        flash("You need to log in first.", "error")
+        return redirect("/login")
     username = session["user"]
-    user_data = users_collection.find_one({"username": username})
-
-    if not user_data:
-        flash("User profile not found.", "error")
-        session.pop("user", None)
+    user = users_collection.find_one({"username": username})
+    if not user:
+        flash("User not found.", "error")
+        session.pop("user", None)  # Clear session if user not found
         return redirect("/login")
-
     if request.method == 'POST':
-        try:
-            update_data = {}
-            # --- Get Core Profile Data ---
-            update_data['email'] = request.form.get('email', user_data.get('email'))
-            update_data['weight'] = float(request.form.get('weight', user_data.get('weight')))
-            update_data['dob'] = request.form.get('dob', user_data.get('dob')) # Add validation
-            update_data['sex'] = request.form.get('sex', user_data.get('sex')).lower()
+        pass
+    return render_template("dashboard_profile.html", user=user)
 
-            height_feet = int(request.form.get('height_feet'))
-            height_inches_part = int(request.form.get('height_inches'))
-            if not (0 <= height_inches_part < 12): raise ValueError("Inches must be 0-11.")
-            update_data['height_inches'] = (height_feet * 12) + height_inches_part
+@app.route("/dashboard/workout")
+def dashboard_workout():
+    if "user" not in session:
+        return redirect("/login")
+    # Add logic to fetch workout data if needed
+    return render_template("dashboard_workout.html")
 
-            update_data['activity_level'] = request.form.get('activity_level', user_data.get('activity_level'))
-            update_data['fitness_goal'] = request.form.get('fitness_goal', user_data.get('fitness_goal'))
+@app.route("/dashboard/diet")
+def dashboard_diet():
+    if "user" not in session:
+        return redirect("/login")
+    # Add logic to fetch diet info if needed
+    return render_template("dashboard_diet.html")
 
-            # --- Get RAW Text Data ---
-            # Assuming textareas named appropriately, split by newline
-            health_raw_text = request.form.get('health_concerns_raw', '')
-            diet_raw_text = request.form.get('dietary_restrictions_raw', '')
-            allergy_raw_text = request.form.get('allergies_raw', '')
+@app.route("/dashboard/about")
+def dashboard_about():
+    if "user" not in session:
+        return redirect("/login")
+    # Add logic for about information if needed
+    return render_template("dashboard_about.html")
 
-            health_raw = [line.strip() for line in health_raw_text.splitlines() if line.strip()]
-            diet_raw = [line.strip() for line in diet_raw_text.splitlines() if line.strip()]
-            allergy_raw = [line.strip() for line in allergy_raw_text.splitlines() if line.strip()]
-
-            # Store Raw Data
-            update_data['health_concerns_raw'] = health_raw
-            update_data['dietary_restrictions_raw'] = diet_raw
-            update_data['allergies_raw'] = allergy_raw
-
-            # --- Perform AI Normalization ---
-            logging.info(f"Starting normalization for user {username}...")
-            health_normalized = normalize_user_text_input(ai_service, health_raw, 'health concerns', ALLOWED_HEALTH_KEYWORDS)
-            diet_normalized = normalize_user_text_input(ai_service, diet_raw, 'dietary restrictions', ALLOWED_DIETARY_KEYWORDS)
-            allergy_normalized = normalize_user_text_input(ai_service, allergy_raw, 'allergies', ALLOWED_ALLERGY_KEYWORDS)
-            logging.info(f"Normalization complete for user {username}.")
-
-            # Store Normalized Data
-            update_data['health_concerns_normalized'] = health_normalized
-            update_data['dietary_restrictions_normalized'] = diet_normalized
-            update_data['allergies_normalized'] = allergy_normalized
-
-            # --- Recalculate Dietary Goals USING NORMALIZED DATA ---
-            # Create a temporary dict with *all* data needed for calculation, including the *newly normalized* lists
-            potential_calc_input = user_data.copy() # Start with existing data
-            potential_calc_input.update(update_data) # Overwrite with form data AND newly normalized lists
-
-            new_goals = calculate_dietary_goals(potential_calc_input) # Pass the combined dict
-            if new_goals:
-                update_data['dietary_goals'] = new_goals
-                logging.info(f"Dietary goals recalculated for {username}.")
-            else:
-                update_data['dietary_goals'] = user_data.get('dietary_goals') # Keep old if calc fails
-                logging.warning(f"Could not recalculate goals for {username} during profile update.")
-
-
-            # --- Update Database ---
-            users_collection.update_one(
-                {"username": username},
-                {"$set": update_data}
-            )
-
-            flash("Profile updated and analyzed successfully!", "success")
-            user_data = users_collection.find_one({"username": username}) # Fetch updated data
-
-        except (ValueError, TypeError) as e:
-            flash(f"Invalid input during profile update: {e}", "error")
-        except Exception as e:
-            logging.error(f"Error updating profile for {username}: {e}")
-            flash("An error occurred while updating your profile.", "error")
-
-        # Stay on profile page
-        age = calculate_age(user_data.get("dob")) if user_data else None
-        # Pass the updated user_data to the template
-        return render_template('profile.html', user=user_data, age=age)
-
-    # --- If GET request ---
-    age = calculate_age(user_data.get("dob"))
-    # The template 'profile.html' needs textareas linked to user.health_concerns_raw etc.
-    # It could also display the user.health_concerns_normalized lists (read-only).
-    return render_template('profile.html', user=user_data, age=age)
 
 @app.route('/api/ai/assist', methods=['GET', 'POST'])
 def ai_assist():
@@ -706,10 +648,18 @@ def generate_workout():
         if history_list: # Should be sorted newest first if using $push/$slice correctly
             summary_parts = []
             # Take the most recent few (e.g., last 3) for the summary to keep prompt concise
+            
             for entry in history_list[:3]: # Limit summary to last 3 workouts
+                 if not entry or not isinstance(entry, dict): 
+                    continue
                  ts = entry.get('timestamp', 'Unknown time')
                  feedback = entry.get('feedback', {})
-                 plan_name = entry.get('workout_plan', {}).get('plan_name', 'Unnamed Plan')
+
+                 # First, get the workout plan data, handling if it's None or missing
+                 workout_plan_data = entry.get('workout_plan') or {}
+                 # Now, safely get the plan name from the workout_plan_data (which is now guaranteed to be a dict)
+                 plan_name = workout_plan_data.get('plan_name', 'Unnamed Plan')
+
                  difficulty = feedback.get('difficulty_rating', 'N/A')
                  completed = feedback.get('completed', 'N/A')
                  notes = feedback.get('notes', '')
@@ -853,28 +803,25 @@ def update_workout_plan():
     # 'current_plan' is the JSON of the workout the user *just finished*
     current_plan = data.get('current_plan', None)
     # 'feedback' contains user's input about the completed workout
-    feedback = data.get('feedback', None)
 
     # Validate input
-    if not current_plan or not isinstance(current_plan, dict):
-         return jsonify({'error': 'Missing or invalid "current_plan" in request body'}), 400
-    if not feedback or not isinstance(feedback, dict):
-        return jsonify({'error': 'Missing or invalid "feedback" in request body'}), 400
+    #if not current_plan or not isinstance(current_plan, dict):
+    #     return jsonify({'error': 'Missing or invalid "current_plan" in request body'}), 400
+    #if not feedback or not isinstance(feedback, dict):
+    #    return jsonify({'error': 'Missing or invalid "feedback" in request body'}), 400
 
     # Expected feedback keys (adjust as needed based on your frontend)
-    completed_status = feedback.get('completed', 'Not specified')
-    difficulty_rating = feedback.get('difficulty_rating', 'Not specified')
-    notes = feedback.get('notes', '')
+    completed_status = data.get('completed', 'Not specified')
+    difficulty_rating = data.get('difficulty_rating', 'Not specified')
+    notes = data.get('notes', '')
 
     # --- Save Workout History ---
     history_entry = {
-        "timestamp": datetime.datetime.now(pytz.utc), # Use timezone-aware UTC time
+        "timestamp": datetime.datetime.now(), # Use timezone-aware UTC time
         "workout_plan": current_plan, # The plan that was just done
-        "feedback": { # Standardize feedback structure
-            "completed": completed_status,
-            "difficulty_rating": difficulty_rating,
-            "notes": notes
-        }
+        "completed": completed_status,
+        "difficulty_rating": difficulty_rating,
+        "notes": notes
         # Optionally add user context at the time of workout if needed
         # "user_context": {"level": data.get('level'), "goal": data.get('goal')}
     }
@@ -932,9 +879,9 @@ def update_workout_plan():
     ```
 
     User's Feedback on Completed Workout:
-    - Completed?: {feedback.get('completed', 'N/A')}
-    - Difficulty Rating (1-10, 1=easy, 10=very hard): {feedback.get('difficulty_rating', 'N/A')}
-    - User Notes/Feelings: {feedback.get('notes', '')}
+    - Completed?: {data.get('completed', 'N/A')}
+    - Difficulty Rating (1-10, 1=easy, 10=very hard): {data.get('difficulty_rating', 'N/A')}
+    - User Notes/Feelings: {data.get('notes', '')}
 
     Instructions:
     1. Analyze the completed plan and the user's feedback.
@@ -967,7 +914,7 @@ def update_workout_plan():
     Example Output (Modification Suggestions):
     ```json
     {{
-      "explanation": "<p>Based on your feedback (difficulty: {feedback.get('difficulty_rating')}) and noting your normalized condition '{user_context.get('health_concerns_normalized', [''])[0]}', I recommend modifying [Exercise].</p>",
+      "explanation": "<p>Based on your feedback (difficulty: {data.get('difficulty_rating')}) and noting your normalized condition '[Example Condition if Any]', I recommend modifying [Exercise].</p>", # <<< FIXED LINE
       "updated_plan": "<p><b>Next Workout Suggestions:</b></p><ul><li>Reduce reps for [Exercise] to X-Y.</li><li>Substitute [Exercise] with [Safer Alternative like X].</li><li>Focus on controlled movement for [...].</li></ul>"
     }}
     ```
@@ -1211,4 +1158,4 @@ if __name__ == '__main__':
     # Run the Flask app in debug mode for development (auto-reloads, more detailed errors)
     # Disable debug mode in production!
     # Consider specifying host='0.0.0.0' to make it accessible on your network
-    app.run(debug=True, port=5000) # Using port 5000 is common for Flask dev
+    app.run(debug=True, port=5050) # Using port 5000 is common for Flask dev
