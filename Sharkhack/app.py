@@ -49,7 +49,8 @@ def register():
             "dob": dob,
             "sex": sex,
             "weight": weight,
-            "join_date": formatted_date
+            "join_date": formatted_date,
+            "max_streak": 0
         }
         existingUser = users_collection.find_one({"username": newUser["username"]})
         if existingUser:

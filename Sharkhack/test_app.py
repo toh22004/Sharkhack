@@ -6,8 +6,44 @@ import json # For parsing potential JSON responses from AI
 import logging # For better logging
 import datetime
 import pytz # For timezone handling
+import math # For math operations
+import re # For regex operations
+import os # For environment variables (if needed)
+import hashlib
+import binascii
 
-# --- Helper Function ---
+# Import your custom AI Service
+from ai_service import AIService
+
+# --- Constants for Normalization ---
+ALLOWED_HEALTH_KEYWORDS = [
+    "hypertension", "diabetes_type1", "diabetes_type2", "high_cholesterol",
+    "kidney_disease", "ibs", "celiac_disease", "gerd", "acid_reflux",
+    "knee_pain", "back_pain", "shoulder_injury", "hip_pain", "wrist_pain",
+    "arthritis", "osteoporosis", "asthma", "copd", "heart_disease",
+    "arrhythmia", "post_surgery_recovery", "pregnancy", "postpartum",
+    "migraine", "anemia", "thyroid_issue", "autoimmune_disorder", "chronic_fatigue",
+    "other_joint_pain", "other_cardiovascular", "other_metabolic", "other_respiratory",
+    "other_musculoskeletal", "other_digestive" # Catch-all categories
+]
+
+ALLOWED_DIETARY_KEYWORDS = [
+    "vegetarian", "vegan", "pescatarian", "gluten_free", "lactose_intolerant",
+    "dairy_free", "low_carb", "keto", "paleo", "low_fodmap", "low_sodium",
+    "low_sugar", "halal", "kosher", "fasting", "intermittent_fasting",
+    "nutrient_deficiency", # e.g., iron, B12
+    "other_restriction"
+]
+
+ALLOWED_ALLERGY_KEYWORDS = [
+    "peanuts", "tree_nuts", "milk", "eggs", "soy", "wheat", "fish", "shellfish",
+    "sesame", "mustard", "celery", "sulfites", "lupin", "molluscs",
+    "corn", "nightshades", "citrus", "seeds", # Common groups
+    "other_allergy"
+]
+# --- End Constants ---
+
+# --- Helper Functions ---
 def calculate_age(dob_str):
     """Calculates age from a MMDDYY string."""
     if not dob_str or len(dob_str) != 6:
@@ -33,18 +69,246 @@ def calculate_age(dob_str):
         logging.error(f"Could not parse DOB string: {dob_str}")
         return 'N/A'
 
-# Import your custom AI Service
-from ai_service import AIService
+def normalize_user_text_input(ai_service, raw_text_list, input_type, allowed_keywords):
+    """
+    Uses AI to normalize free-form user text into standardized keywords.
+
+    Args:
+        ai_service: The AI service instance.
+        raw_text_list: A list of strings containing the user's raw input.
+        input_type: String describing the type ('health concerns', 'dietary restrictions', 'allergies').
+        allowed_keywords: A list of standardized keywords the AI should map to.
+
+    Returns:
+        A list of matched standardized keywords, or an empty list if error/no match.
+    """
+    if not isinstance(raw_text_list, list) or not raw_text_list:
+        return [] # Return empty if no input
+
+    # Filter out empty strings
+    filtered_raw_text = [text.strip() for text in raw_text_list if text.strip()]
+    if not filtered_raw_text:
+        return []
+
+    # Create a numbered list of allowed keywords for the prompt
+    keyword_list_str = "\n".join([f"{i+1}. {kw}" for i, kw in enumerate(allowed_keywords)])
+
+    prompt = f"""
+    Analyze the following user-provided text describing their {input_type}.
+    Identify any conditions/restrictions/allergies mentioned that are relevant to diet or exercise planning.
+    Map the user's description to the *most appropriate* keywords from the provided standardized list ONLY.
+    Output *only* a valid JSON list containing the matched standardized keywords.
+    If no relevant keywords from the list match the user's description, or if the description is too vague or unrelated (e.g., "feeling tired"), output an empty JSON list: [].
+    Do not include keywords that are not explicitly supported by the user's text.
+
+    Allowed Standardized Keywords:
+    {keyword_list_str}
+
+    User Text Input List:
+    {json.dumps(filtered_raw_text)}
+
+    Required Output Format: Valid JSON list of strings (e.g., ["keyword1", "keyword2"])
+    JSON Output:
+    """
+    logging.info(f"Sending prompt to AI for normalizing {input_type}...")
+    response_text = ai_service.generate_response(prompt)
+    logging.info(f"Received normalization response for {input_type}.")
+
+    try:
+        # Clean potential markdown ```json ... ``` or just ``` around the JSON
+        cleaned_response = response_text.strip()
+        if cleaned_response.startswith("```json"):
+            cleaned_response = cleaned_response[7:]
+            if cleaned_response.endswith("```"):
+                cleaned_response = cleaned_response[:-3]
+        elif cleaned_response.startswith("```"):
+             cleaned_response = cleaned_response[3:]
+             if cleaned_response.endswith("```"):
+                cleaned_response = cleaned_response[:-3]
+
+        # Further cleaning: Remove potential leading/trailing non-JSON characters just in case
+        # Find the first '{' or '[' and the last '}' or ']'
+        start_index = -1
+        end_index = -1
+        for i, char in enumerate(cleaned_response):
+            if char in '[{':
+                start_index = i
+                break
+        for i in range(len(cleaned_response) - 1, -1, -1):
+            if cleaned_response[i] in ']}':
+                end_index = i
+                break
+
+        if start_index != -1 and end_index != -1 and start_index <= end_index:
+            json_str = cleaned_response[start_index : end_index + 1]
+        else:
+             # If we can't find valid JSON delimiters, assume it's not JSON
+             raise json.JSONDecodeError("Could not find JSON delimiters", cleaned_response, 0)
+
+
+        normalized_list = json.loads(json_str)
+
+        # Validate: Ensure it's a list and all items are in the allowed list
+        if isinstance(normalized_list, list):
+            # Filter out any keywords the AI might have hallucinated
+            valid_normalized_list = [kw for kw in normalized_list if isinstance(kw, str) and kw in allowed_keywords]
+            logging.info(f"Successfully normalized {input_type}: {valid_normalized_list}")
+            return valid_normalized_list
+        else:
+            logging.warning(f"Normalization AI for {input_type} did not return a list. Raw response: {response_text}")
+            return []
+    except json.JSONDecodeError as e:
+        logging.error(f"Failed to decode JSON from AI normalization for {input_type}. Error: {e}. Raw response: {response_text}")
+        return []
+    except Exception as e:
+        logging.error(f"Unexpected error during AI normalization for {input_type}: {e}. Raw response: {response_text}")
+        return []
+
+def calculate_dietary_goals(user_data):
+    """
+    Calculates estimated dietary goals based on user profile.
+    Requires: weight (lbs), height_inches, dob (MMDDYY), sex ('male'/'female'),
+              activity_level, fitness_goal.
+    Returns a dictionary with calculated goals or None if the data is insufficient.
+    """
+    # Required fields now include normalized data implicitly if needed for calc
+    required_fields = ['weight', 'height_inches', 'dob', 'sex', 'activity_level', 'fitness_goal']
+    # Check basic fields first
+    if not user_data or not all(field in user_data and user_data[field] is not None for field in required_fields):
+        logging.warning(f"Insufficient base data to calculate dietary goals for user {user_data.get('username')}.")
+        return None
+    
+    try:
+        weight_lbs = float(user_data['weight'])
+        height_inches = float(user_data['height_inches'])
+        dob = user_data['dob']
+        sex = user_data['sex'].lower()
+        activity_level = user_data['activity_level'] 
+        fitness_goal = user_data['fitness_goal']
+        health_conditions = user_data.get('health_conditions', [])
+
+        age = calculate_age(dob)
+        if age is None:
+            logging.warning("Could not calculate age without valid age.")
+            return None
+        
+        # --- Get NORMALIZED health concerns ---
+        health_concerns_normalized = user_data.get('health_concerns_normalized', [])
+
+        # --- Conversions ---
+        weight_kg = weight_lbs * 0.453592
+        height_cm = height_inches * 2.54
+
+        # --- BMR (Mifflin-St Jeor Equation) ---
+        if sex == 'male':
+            bmr = (10 * weight_kg) + (6.25 * height_cm) - (5 * age) + 5
+        elif sex == 'female':
+            bmr = (10 * weight_kg) + (6.25 * height_cm) - (5 * age) - 161
+        else:
+            # Use an average if sex is not specified or different
+            bmr = (10 * weight_kg) + (6.25 * height_cm) - (5 * age) -78 # Midpoint 
+            logging.warning(f"Sex specified as '{sex}'. Using average BMR calculation.")
+        
+        # --- TDEE (Total Daily Energy Expenditure) ---
+        activity_multiplier = {
+            'sedentary': 1.2,
+            'lightly_active': 1.375,
+            'moderately_active': 1.55,
+            'very_active': 1.725,
+            'extra_active': 1.9
+        }
+        tdee = bmr * activity_multiplier.get(activity_level, 1.2) # Default to sedentary if not found
+
+        # --- Calorie Goal Adjustment ---
+        calorie_goal = tdee
+        if fitness_goal == 'lose_weight':
+            calorie_goal -= 500 # Aim for ~1lb loss per week
+            # Safety net: Don't go below BMR or general minimums
+            min_calories = 1500 if sex == 'male' else 1200
+            calorie_goal = max(calorie_goal, bmr * 0.9, min_calories)
+        elif fitness_goal == 'gain_muscle':
+            calorie_goal += 300
+
+        # --- Protein Goal ---
+        # Adjust protein based on goal (g/kg of body weight)
+        if fitness_goal == 'gain_muscle':
+            protein_factor = 1.8 # Higher end for muscle gain
+        elif activity_level in ['very_active', 'extra_active']:
+            protein_factor = 1.6 # Higher end for very active
+        else:
+            protein_factor = 1.2 # General active population
+        protein_grams = protein_factor * weight_kg
+
+        # --- Sodium Goal ---
+        # Basic guideline, lower if high blood pressure is a concern
+        sodium_mg = 2300
+        # Check the normalized list for relevant keywords
+        if "hypertension" in health_concerns_normalized or "heart_disease" in health_concerns_normalized or "kidney_disease" in health_concerns_normalized:
+             sodium_mg = 1500
+             logging.info(f"Adjusting sodium goal lower due to normalized health concerns for {user_data.get('username')}: {health_concerns_normalized}")
+
+        # --- Water Goal ---
+        # Guideline: ~half body weight (lbs) in oz, convert to liters
+        water_liters = (weight_lbs / 2) * 0.0295735 # oz to liters conversion factor
+
+        goals = {
+            "calories": int(round(calorie_goal)),
+            "protein_grams": int(round(protein_grams)),
+            "sodium_mg": int(round(sodium_mg)),
+            "water_liters": round(water_liters, 1),
+            "last_calculated": datetime.datetime.now(pytz.utc)
+        }
+        logging.info(f"Calculated dietary goals for {user_data.get('username')}: {goals}")
+        return goals
+
+    except (ValueError, TypeError, KeyError) as e:
+        logging.error(f"Error calculating dietary goals for {user_data.get('username')}: {e}. User data subset: {{'weight': user_data.get('weight'), 'height': user_data.get('height_inches')}}")
+        return None
+
+def get_user_context_for_ai(username):
+    """Helper to fetch user data relevant for AI prompts, including raw and normalized."""
+    user_data = users_collection.find_one({"username": username})
+    if not user_data:
+        return None
+
+    context = {
+        'username': username,
+        'age': calculate_age(user_data.get('dob')),
+        'sex': user_data.get('sex', 'N/A'),
+        'weight': user_data.get('weight', 'N/A'),
+        'height_inches': user_data.get('height_inches', 'N/A'),
+        'activity_level': user_data.get('activity_level', 'N/A'),
+        'fitness_goal': user_data.get('fitness_goal', 'N/A'),
+        # Raw Data
+        'health_concerns_raw': user_data.get('health_concerns_raw', []),
+        'dietary_restrictions_raw': user_data.get('dietary_restrictions_raw', []),
+        'allergies_raw': user_data.get('allergies_raw', []),
+        # Normalized Data
+        'health_concerns_normalized': user_data.get('health_concerns_normalized', []),
+        'dietary_restrictions_normalized': user_data.get('dietary_restrictions_normalized', []),
+        'allergies_normalized': user_data.get('allergies_normalized', []),
+        # Other data
+        'dietary_goals': user_data.get('dietary_goals'),
+        'workout_history': user_data.get('workout_history', [])
+    }
+    # ... (calculate height_str as before) ...
+    return context
 
 # --- Configuration ---
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+#logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message))s')
 
 app = Flask(__name__)
 app.secret_key = "TestKey"
 ai_service = AIService()
 
 uri = "mongodb+srv://hetony2005:1111@users.jdmvwvu.mongodb.net/?appName=Users"
+
+# --- Configuration ---
+SALT_LENGTH = 16  # Length of the salt in bytes (16 is common)
+HASH_ALGORITHM = 'sha256' # Algorithm for PBKDF2
+ITERATIONS = 1000
+
 # Create a new client and connect to the server
 client = MongoClient(uri, server_api=ServerApi('1'))
 # Send a ping to confirm a successful connection
@@ -54,13 +318,68 @@ try:
 except Exception as e:
     print(e)
 
-
 # --- Routes ---
 db = client["GymBro"]
 users_collection = db["Users"]
 
 #The Main Page
+# --- Password Hashing Function ---
+def hash_password(passw):
+    """Hashes a password using PBKDF2 with a random salt, returns hex strings."""
+    salt_bytes = os.urandom(SALT_LENGTH)
+    # PBKDF2 HMAC needs bytes for password and salt
+    hashed_password_bytes = hashlib.pbkdf2_hmac(
+        HASH_ALGORITHM,
+        passw.encode('utf-8'), # Password as bytes
+        salt_bytes,               # Salt as bytes
+        ITERATIONS
+    )
+    # Convert salt and hash bytes to hex strings for storage
+    salt_hex = salt_bytes.hex()
+    hashed_password_hex = hashed_password_bytes.hex()
+    return salt_hex, hashed_password_hex
 
+# --- Password Verification Function ---
+def check_password(username, input_password):
+    """Checks if the input password matches the stored hash for the username."""
+    user = users_collection.find_one({"username": username})
+    if user:
+        # Retrieve stored salt and hash (now expected to be hex strings)
+        stored_salt_hex = user.get("salt")
+        stored_hash_hex = user.get("hashed_password")
+
+        if not stored_salt_hex or not stored_hash_hex:
+             print(f"Error: User '{username}' record is missing salt or hashed_password.")
+             return False
+
+        try:
+            # Convert the stored hex salt back to bytes
+            stored_salt_bytes = bytes.fromhex(stored_salt_hex)
+        except (ValueError, TypeError) as e:
+             print(f"Error: Could not decode salt for user '{username}'. Invalid hex stored? Error: {e}")
+             return False
+
+        # Hash the input password using the *retrieved and decoded* salt
+        input_hash_bytes = hashlib.pbkdf2_hmac(
+            HASH_ALGORITHM,
+            input_password.encode('utf-8'),
+            stored_salt_bytes, # Use the salt converted back to bytes
+            ITERATIONS
+        )
+
+        # Convert the newly calculated hash to hex to compare with the stored hex string
+        input_hash_hex = input_hash_bytes.hex()
+
+        # Compare the hex strings
+        if input_hash_hex == stored_hash_hex:
+            print(f"Password correct for user '{username}'!")
+            return True
+        else:
+            print(f"Incorrect password for user '{username}'!")
+            return False
+    else:
+        print(f"User '{username}' not found!")
+        return False
 
 @app.route("/")
 def check_user():
@@ -82,11 +401,20 @@ def register():
         dob = request.form.get('dob')#dateofbirth
         sex = request.form.get('sex')
         weight = request.form.get('weight')#lb
+        height_inches = request.form.get('height_inches') # New field for height
+        
+        activity_level = request.form.get('activity_level') # 5 options: sedentary, lightly_active, moderately_active, very_active, extra_active
+        fitness_goal = request.form.get('fitness_goal')# gain_muscle, lose_weight, maintain_weight
+        # --- get RAW free text input ---
+        health_concerns_raw_text = request.form.get('health_concerns_raw', '')
+        dietary_restrictions_raw_text = request.form.get('dietary_restrictions_raw', '')
+        allergies_raw_text = request.form.get('allergies_raw','')
 
-        # Basic validation (add more robust validation as needed)
-        if not all([username, email, password, dob, sex, weight]):
-            flash("Please fill out all fields.")
-            return render_template('register.html')
+        health_concerns_raw = [line.strip() for line in health_concerns_raw_text.splitlines() if line.strip()]
+        dietary_restrictions_raw = [line.strip() for line in dietary_restrictions_raw_text.splitlines() if line.strip()]
+        allergies_raw = [line.strip() for line in allergies_raw_text.splitlines() if line.strip()]
+        
+        salt_hex, hash_pass = hash_password(password)
 
         now = datetime.datetime.now()
         formatted_date = now.strftime("%m%d%y")
@@ -94,12 +422,27 @@ def register():
         newUser = {
             "username": username,
             "email": email,
-            "password": password,
+            "salt": salt_hex,
+            "password": hash_pass,
             "dob": dob,
             "sex": sex,
             "weight": weight,
-            "join_date": formatted_date
+            "join_date": formatted_date,
+            "max_streak":0,
+            "height_inches":height_inches, 
+            "fitness_goal": fitness_goal,
+            "activity_level": activity_level
+        
+            # --- Store RAW text ---
+      #      "health_concerns_raw": health_concerns_raw,
+      #      "dietary_restrictions_raw": dietary_restrictions_raw,
+      #      "allergies_raw": allergies_raw,
+            # --- Initalize Normalized fields as empty ---
+      #      "health_conditions_normalized": [],
+      #      "dietary_restrictions_normalized": [],
+      #      "allergies_normalized": []
         }
+        
         existingUser = users_collection.find_one({"username": newUser["username"]})
         if existingUser:
             flash("Username already exists. Please choose a different one.")
@@ -108,6 +451,8 @@ def register():
             users_collection.insert_one(newUser)#inserts this into the mongo database
         return redirect("/login") #return to main
     return render_template('register.html')
+
+
 #The signin page, should be an option from the main page. Upon successful signin, redirect to ??? page
 @app.route("/login", methods = ['GET', 'POST'])
 def login():
@@ -136,6 +481,103 @@ def logout():
     return redirect("/login")
 # --- AI Endpoints ---
 
+@app.route("/profile", methods=['GET', 'POST'])
+def profile():
+    if "user" not in session:
+        flash("Please log in to view your profile.", "warning")
+        return redirect("/login")
+
+    username = session["user"]
+    user_data = users_collection.find_one({"username": username})
+
+    if not user_data:
+        flash("User profile not found.", "error")
+        session.pop("user", None)
+        return redirect("/login")
+
+    if request.method == 'POST':
+        try:
+            update_data = {}
+            # --- Get Core Profile Data ---
+            update_data['email'] = request.form.get('email', user_data.get('email'))
+            update_data['weight'] = float(request.form.get('weight', user_data.get('weight')))
+            update_data['dob'] = request.form.get('dob', user_data.get('dob')) # Add validation
+            update_data['sex'] = request.form.get('sex', user_data.get('sex')).lower()
+
+            height_feet = int(request.form.get('height_feet'))
+            height_inches_part = int(request.form.get('height_inches'))
+            if not (0 <= height_inches_part < 12): raise ValueError("Inches must be 0-11.")
+            update_data['height_inches'] = (height_feet * 12) + height_inches_part
+
+            update_data['activity_level'] = request.form.get('activity_level', user_data.get('activity_level'))
+            update_data['fitness_goal'] = request.form.get('fitness_goal', user_data.get('fitness_goal'))
+
+            # --- Get RAW Text Data ---
+            # Assuming textareas named appropriately, split by newline
+            health_raw_text = request.form.get('health_concerns_raw', '')
+            diet_raw_text = request.form.get('dietary_restrictions_raw', '')
+            allergy_raw_text = request.form.get('allergies_raw', '')
+
+            health_raw = [line.strip() for line in health_raw_text.splitlines() if line.strip()]
+            diet_raw = [line.strip() for line in diet_raw_text.splitlines() if line.strip()]
+            allergy_raw = [line.strip() for line in allergy_raw_text.splitlines() if line.strip()]
+
+            # Store Raw Data
+            update_data['health_concerns_raw'] = health_raw
+            update_data['dietary_restrictions_raw'] = diet_raw
+            update_data['allergies_raw'] = allergy_raw
+
+            # --- Perform AI Normalization ---
+            logging.info(f"Starting normalization for user {username}...")
+            health_normalized = normalize_user_text_input(ai_service, health_raw, 'health concerns', ALLOWED_HEALTH_KEYWORDS)
+            diet_normalized = normalize_user_text_input(ai_service, diet_raw, 'dietary restrictions', ALLOWED_DIETARY_KEYWORDS)
+            allergy_normalized = normalize_user_text_input(ai_service, allergy_raw, 'allergies', ALLOWED_ALLERGY_KEYWORDS)
+            logging.info(f"Normalization complete for user {username}.")
+
+            # Store Normalized Data
+            update_data['health_concerns_normalized'] = health_normalized
+            update_data['dietary_restrictions_normalized'] = diet_normalized
+            update_data['allergies_normalized'] = allergy_normalized
+
+            # --- Recalculate Dietary Goals USING NORMALIZED DATA ---
+            # Create a temporary dict with *all* data needed for calculation, including the *newly normalized* lists
+            potential_calc_input = user_data.copy() # Start with existing data
+            potential_calc_input.update(update_data) # Overwrite with form data AND newly normalized lists
+
+            new_goals = calculate_dietary_goals(potential_calc_input) # Pass the combined dict
+            if new_goals:
+                update_data['dietary_goals'] = new_goals
+                logging.info(f"Dietary goals recalculated for {username}.")
+            else:
+                update_data['dietary_goals'] = user_data.get('dietary_goals') # Keep old if calc fails
+                logging.warning(f"Could not recalculate goals for {username} during profile update.")
+
+
+            # --- Update Database ---
+            users_collection.update_one(
+                {"username": username},
+                {"$set": update_data}
+            )
+
+            flash("Profile updated and analyzed successfully!", "success")
+            user_data = users_collection.find_one({"username": username}) # Fetch updated data
+
+        except (ValueError, TypeError) as e:
+            flash(f"Invalid input during profile update: {e}", "error")
+        except Exception as e:
+            logging.error(f"Error updating profile for {username}: {e}")
+            flash("An error occurred while updating your profile.", "error")
+
+        # Stay on profile page
+        age = calculate_age(user_data.get("dob")) if user_data else None
+        # Pass the updated user_data to the template
+        return render_template('profile.html', user=user_data, age=age)
+
+    # --- If GET request ---
+    age = calculate_age(user_data.get("dob"))
+    # The template 'profile.html' needs textareas linked to user.health_concerns_raw etc.
+    # It could also display the user.health_concerns_normalized lists (read-only).
+    return render_template('profile.html', user=user_data, age=age)
 
 @app.route('/api/ai/assist', methods=['GET', 'POST'])
 def ai_assist():
@@ -257,7 +699,7 @@ def generate_workout():
     duration = data.get('duration', 30)
     # Use weight/height from request if provided, otherwise try DB (optional)
     weight = data.get('weight', user_data.get('weight', 'N/A') if user_data else 'N/A')
-    height = data.get('height', 'N/A') # Assuming height isn't stored currently
+    height_inches = data.get('height_inches', 'N/A') # Assuming height isn't stored currently
 
     # --- Construct the AI Prompt with fetched data ---
     prompt = f"""
@@ -265,7 +707,7 @@ def generate_workout():
     - Age: {user_age}
     - Sex: {user_sex}
     - Weight: {weight} lbs
-    - Height: {height} ft'in"
+    - Height: {height_inches} inches"
     - Experience Level: {experience_level}
     - Goals: {goals}
     - Desired Focus Area: {focus_area}
@@ -285,12 +727,20 @@ def generate_workout():
     - Provide exercises with sets, reps/duration, rest periods, and concise form tips, especially for beginners.
     - Structure the output strictly according to the JSON format provided below.
     - Ensure the total estimated duration aligns roughly with the user's request.
+    - **CRITICAL: Base safety modifications PRIMARILY on the 'Interpreted Health Conditions (Normalized)' list.** This list has been processed for reliability. Examples:
+        - If 'knee_pain' or 'arthritis' (knee) is listed, AVOID high-impact (jumping, running), deep squats/lunges. Suggest alternatives like swimming, cycling (if appropriate), modified bodyweight exercises.
+        - If 'back_pain' is listed, AVOID heavy spinal loading (heavy deadlifts/squats), high-impact, excessive twisting. Emphasize core stability (planks, bird-dog), controlled movements.
+        - If 'hypertension' or 'heart_disease' is listed, AVOID holding breath (Valsalva), suggest gradual warm-ups/cool-downs, moderate intensity, monitor perceived exertion. Consult physician disclaimer is vital.
+        - If 'shoulder_injury' is listed, AVOID overhead presses, push-ups (initially), suggest rows, band work, check range of motion.
+    - Use the 'Original Health Input (Raw)' text for additional nuance or context if needed, but the *normalized list dictates the core safety constraints*.
+    - Also consider 'Interpreted Dietary Restrictions' if relevant (e.g., potential energy level impacts of keto/fasting). Acknowledge allergies ('Interpreted Allergies') mainly for cross-contamination awareness if suggesting group classes, not typically direct workout modification.
 
     Required Output Format (JSON only):
     {{
       "plan_name": "Personalized Workout for {focus_area}",
       "estimated_duration_minutes": {duration},
       "focus": "{focus_area}",
+      "health_consideration_note": "string (e.g., 'Modified exercise X due to normalized condition: knee_pain.' or 'Low-impact plan based on profile.')", # Emphasize it's based on normalized data
       "mood_adjustment_note": "string (e.g., 'Adjusted for lower energy based on mood.' or 'Slightly increased intensity based on recent feedback.' or '')",
       "warm_up": [
         {{"exercise": "string", "duration": "string (e.g., 60 seconds)", "reps": "string (optional)", "sets": "integer (optional)", "form_tip": "string (optional)"}}
@@ -530,7 +980,6 @@ def analyze_meal():
     response_text = ai_service.generate_response(prompt)
     logging.info("Received response from AI for /analyze-meal.")
     return jsonify({'analysis': response_text})
-
 
 @app.route('/api/ai/check-form', methods=['POST'])
 def check_form():

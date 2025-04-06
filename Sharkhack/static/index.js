@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelector('#about-view').style.display = 'block';
     }
 
-    document.querySelector('form').onsubmit = (event) => {
+    document.querySelector('#workout-form').onsubmit = (event) => {
         event.preventDefault();
         let goal = document.getElementsByName('goal')[0].value;
         let equipment = document.getElementsByName('equipment')[0].value;
@@ -62,20 +62,19 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(result => {
-            console.log(result["updated_plan"]["raw_response"]);
-            console.log(result["updated_plan"]["raw_response"]);
-            document.querySelector('#content').innerHTML = result["updated_plan"]["raw_response"];
+            let json_file = result["updated_plan"]["raw_response"];
+            console.log(json_file);
+            // document.querySelector('#content').innerHTML = json_file;
             document.querySelector('#workout-form').style.display = 'none';
-            document.querySelector('#workout-start').style.display = 'block';
+            document.querySelector('#workout-form2').style.display = 'block';
           });
     }
 
-    document.querySelector('#workout-start').onsubmit = (event) => {
+    document.querySelector('#workout-form2').onsubmit = (event) => {
         event.preventDefault();
-        // completed ... difficulty_rating ... notes
-        let completed = "";
-        let difficulty_rating = "";
-        let notes = "";
+        let completed = document.getElementsByName('completed')[0].value;;
+        let difficulty_rating = document.getElementsByName('difficulty_rating')[0].value;;
+        let notes = document.getElementsByName('notes')[0].value;;
         fetch('/api/ai/update-workout-plan', {
             method: 'POST',
             headers: {
@@ -87,6 +86,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 notes: notes
             })
         })
+        .then(response => response.json())
+        .then(result => {
+            console.log(result);
+            document.querySelector('#workout-form2').style.display = 'none';
+        });
     }
 });
 

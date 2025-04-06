@@ -15,17 +15,39 @@
                 <input class="form-control" name="email" placeholder="Email">
             </div>
             <div class="form-group">
-                <input class="form-control" name="dob" placeholder="Date of Birth">
+                <input class="form-control" name="dob" placeholder="Date of Birth(MMDDYY)">
             </div>
             <div class="form-group">
-                <input class="form-control" name="sex" placeholder="Sex">
+                <input class="form-control" name="sex" placeholder="Sex(M/F)">
             </div>
             <div class="form-group">
-                <input class="form-control" name="weight" placeholder="Weight">
+                <input class="form-control" name="weight" placeholder="Weight(lb)">
+            </div>
+            <div class="form-group">
+                <input class="form-control" name="height" placeholder="Height(in)">
+            </div>
+            <div class="form-group">
+                <label for="activity_level">Choose a goal:</label>
+                <select id="activity_level" name="activity_level">
+                    <option value="sedentary">Sedentary</option>
+                    <option value="lightly_active">LightLy Active</option>
+                    <option value="moderately_active">Moderately Active</option>
+                    <option value="very_active">Very Active</option>
+                    <option value="extra_active">Extra Active</option>
+                  </select>
+            </div>
+            <div class="form-group">
+                <label for="fitness_goal">Choose a goal:</label>
+                <select id="fitness_goal" name="fitness_goal">
+                    <option value="gain_muscle">Gain Muscle</option>
+                    <option value="lose_weight">Lose Weight</option>
+                    <option value="maintain_weight">Maintain Weight</option>
+                  </select>
             </div>
             <div class="form-group">
                 <input class="form-control" type="password" name="password" placeholder="Password">
             </div>
+            
             <input class="btn btn-primary" type="submit" value="Register">
         </form>
     
