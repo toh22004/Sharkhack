@@ -454,23 +454,29 @@ def register():
 
 
 #The signin page, should be an option from the main page. Upon successful signin, redirect to ??? page
-@app.route("/login", methods = ['GET', 'POST'])
+@app.route("/login", methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
 
-        existingUser = users_collection.find_one({"username": username})
-        if existingUser:
-            existingUserPass = existingUser["password"]
-            if existingUserPass == password:
-                session["user"] = username
-                return redirect("/")
-            else:
-                flash("Incorrect Password, Try Again.")
-                return redirect("/login")  
+        # Use the check_password function for validation
+        if check_password(username, password):
+            session["user"] = username  # Store username in session
+            flash("Login successful!", "success")
+            return redirect("/dashboard")  # Redirect to a protected page
         else:
-            return redirect("/register") #User doesn't exist, go to the signup page
+            # Determine why check_password failed
+            user = users_collection.find_one({"username": username})
+            if user:
+                # User exists, but password was wrong
+                flash("Incorrect password. Try again.", "error")
+                return redirect('/login')
+            else:
+                # User doesn't exist
+                flash("User not found. Please register.", "error")
+                return redirect('/register')
+
     return render_template('login.html')
 
 #Logout
@@ -588,35 +594,68 @@ def ai_assist():
     data = request.json
     if not data or 'message' not in data:
         return jsonify({'error': 'Missing message in request body'}), 400
+    
+    username = session["user"]
 
+    # --- Get Full User Context ---
+    user_context = get_user_context_for_ai(username)
+    # Use profile context primarily, override from request if needed
+    level = data.get('level', user_context.get('activity_level', 'beginner'))
+    goal = data.get('goal', user_context.get('fitness_goal', 'general fitness'))
+    performance = data.get('performance', 'average') # Example additional context from request
     user_input = data.get('message')
+
+    '''
+    # Old code
     # Extract individual context variables from the request
     level = data.get('level', 'beginner')
     goal = data.get('goal', 'general fitness')
     performance = data.get('performance', 'average')
     # Get any additional context that might be provided
     additional_context = {k: v for k, v in data.items() if k not in ['message', 'level', 'goal', 'performance']}
-
+    '''
+    
     # Build a fitness-specific prompt, now with added empathy instruction
     prompt = f"""
     You are GymBro, a friendly and supportive fitness AI assistant. The user is interacting with you through a fitness app.
 
-    Context Provided:
-    - User's Stated Experience Level: {level}
-    - User's Stated Fitness Goal: {goal}
-    - User's Reported Recent Workout Performance: {performance}
-    - Additional User Profile Data (if available): {additional_context}
+    User Profile & Context:
+    - Username: {user_context['username']}
+    - Age: {user_context['age']}
+    - Sex: {user_context['sex']}
+    - Weight: {user_context['weight']} lbs
+    - Height: {user_context['height_str']}
+    - Stated Activity Level/Experience: {level}
+    - Stated Fitness Goal: {goal}
+    - Reported Recent Workout Performance: {performance}
+
+    --- Critical Constraints (Processed from User Input) ---
+    - Normalized Health Conditions: {', '.join(user_context['health_concerns_normalized']) if user_context['health_concerns_normalized'] else 'None'}
+    - Normalized Dietary Restrictions: {', '.join(user_context['dietary_restrictions_normalized']) if user_context['dietary_restrictions_normalized'] else 'None'}
+    - Normalized Allergies: {', '.join(user_context['allergies_normalized']) if user_context['allergies_normalized'] else 'None'}
+
+    --- Original User Input (For Nuance/Context Only) ---
+    - Raw Health Input: {'; '.join(user_context['health_concerns_raw']) if user_context['health_concerns_raw'] else 'None'}
+    - Raw Dietary Input: {'; '.join(user_context['dietary_restrictions_raw']) if user_context['dietary_restrictions_raw'] else 'None'}
+    - Raw Allergy Input: {'; '.join(user_context['allergies_raw']) if user_context['allergies_raw'] else 'None'}
+    -------------------------------------------------------
+
+    - Calculated Dietary Goals (Optional Ref): {user_context.get('dietary_goals', 'Not calculated')}
 
     User's Message: "{user_input}"
 
     Your Task:
-    1. Analyze the user's message and context.
+    1. Analyze the user's message and their full context (profile, goals, health info).
     2. If the user seems to be venting, expressing frustration, or feeling down (especially if mood is low), respond empathetically and supportively *first*. Acknowledge their feelings. Keep it concise and encouraging. Do not give medical advice.
     3. Address the user's specific question or statement with scientifically accurate fitness advice relevant to their context (level, goal, etc.).
     4. Maintain a supportive, encouraging, and friendly tone throughout.
     5. Keep responses concise but helpful (aim for 1-3 paragraphs).
     6. Avoid promoting unrealistic fitness standards. Focus on consistency, health, and well-being.
-    7. **IMPORTANT: Format your entire response using simple HTML tags.** Use `<p>` for paragraphs, `<b>` or `<strong>` for bold text, `<i>` or `<em>` for italics, and `<ul>` with `<li>` for bullet points if needed. Use `<br>` for line breaks where appropriate *within* text blocks, but prefer `<p>` for separating distinct ideas. **Do not use Markdown formatting like *, **, or backticks.** Do not include `<html>`, `<head>`, or `<body>` tags.
+    7. **CRITICAL SAFETY/ADHERENCE:** Your response MUST strictly adhere to the constraints listed under "Normalized Health Conditions", "Normalized Dietary Restrictions", and "Normalized Allergies".
+        - **Health:** Do NOT suggest exercises conflicting with normalized conditions (e.g., no high-impact for 'knee_pain', modify for 'back_pain', consider intensity for 'hypertension'/'heart_disease').
+        - **Diet/Allergies:** Do NOT suggest foods/ingredients conflicting with normalized restrictions or allergies (e.g., no meat if 'vegetarian'/'vegan', no gluten if 'celiac_disease'/'gluten_free', strictly avoid listed 'allergies').
+    8. **IMPORTANT: Format your entire response using simple HTML tags.** Use `<p>` for paragraphs, `<b>` or `<strong>` for bold text, `<i>` or `<em>` for italics, and `<ul>` with `<li>` for bullet points if needed. Use `<br>` for line breaks where appropriate *within* text blocks, but prefer `<p>` for separating distinct ideas. **Do not use Markdown formatting like *, **, or backticks.** Do not include `<html>`, `<head>`, or `<body>` tags.
+    
     
     Example HTML structure:
     <p>It sounds like you're feeling a bit frustrated, and that's totally understandable!</p>
@@ -645,6 +684,8 @@ def generate_workout():
         return jsonify({'error': 'User not logged in'}), 401
     username = session["user"]
     # --- End Authentication Check ---
+
+    user_context = get_user_context_for_ai(username)
 
     data = request.json
     if not data:
@@ -715,6 +756,11 @@ def generate_workout():
     - Available Category/Equipment: {category}
     - Current Mood (1-10, 1=very bad, 10=very good): {current_mood if current_mood is not None else 'Not specified'}
     - Mood Context: {mood_context if mood_context else 'None'}
+    - Interpreted Health Conditions (Normalized): {', '.join(user_context['health_concerns_normalized']) if user_context['health_concerns_normalized'] else 'None'}
+    - Original Health Input (Raw): {'; '.join(user_context['health_concerns_raw']) if user_context['health_concerns_raw'] else 'None'}
+    # --- Add similar lines for DIET and ALLERGIES (Normalized/Raw) if relevant for workout ---
+    - Interpreted Dietary Restrictions (Normalized): {', '.join(user_context['dietary_restrictions_normalized']) if user_context['dietary_restrictions_normalized'] else 'None'}
+    - Interpreted Allergies (Normalized): {', '.join(user_context['allergies_normalized']) if user_context['allergies_normalized'] else 'None'}
 
     Recent Workout History Summary (Last 3 Sessions, Newest First):
     {workout_history_summary}
