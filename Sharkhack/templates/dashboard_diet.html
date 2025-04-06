@@ -7,7 +7,6 @@
         <script src="/static/index.js"></script>
     </head>
     <body>
-        <h1>Welcome!</h1>
         <div id="main-interface">
             <h2>GymBro - Your Trusted Trainer</h2>
             <a href="/dashboard" class="btn btn-outline-primary" id="menu" style="margin: 18px;">Home</a>
@@ -25,8 +24,19 @@
 
         <div class="sections" id="diet-view">
           <h3>Diet</h3>
-          <h3>Based on your age, body mass, and current goals:</h3>
-          
+
+          <form id="diet-form" style="display: block;">
+            <!-- Cook Food or Eat Out -->
+            <input type="text" name="meal_type" style="font-size: 25px; margin-top: 3%;" placeholder="Cuisine Type: "><br><br>
+            <input type="submit" value="Submit"><br><br>
+          </form>
+
+          <h4 id="intro-diet" style="display: none; line-height: 5em;">Based on your age, body mass, and current goals:</h4>
+          <!-- Suggestions in Protein, Carbs, and So On -->
+          <p id="content11" style="width: 45%; font-size: 1rem; white-space: pre-wrap; line-height: 1.8;"></p>
+
+
+
       </div>
 
 

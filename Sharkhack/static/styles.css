@@ -73,13 +73,13 @@
     0% {
         position: absolute;
         left: 2vh;
-        top: 55vw;
+        top: 50vw;
         opacity: 0;
     }
     100% {
         position: absolute;
         left: 2vh;
-        top: 55vw;
+        top: 50vw;
         opacity: 1;
     }
 }

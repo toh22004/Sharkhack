@@ -66,8 +66,51 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(result => {
                 let json_file = result["updated_plan"]["raw_response"];
-                console.log(json_file);
+                json_file = json_file.slice(7);
+                json_file = json_file.slice(0, -3);
+                const json_real_file = JSON.parse(json_file);
+                console.log(json_real_file);
+                console.log(json_real_file["plan_name"]);
+
+                let message = document.querySelector('#content');
+                message.innerHTML = "";
+                message.innerHTML += `<h2 style="width: 70%;">${json_real_file["plan_name"]}</h2>`;
+
+                message.innerHTML += `<br><br>`;
+
+                message.innerHTML += `<h3 style="width: 45%;">Warm-Up:</h3>`;
+                for (let i = 0; i < json_real_file["warm_up"].length; i++) {
+                    message.innerHTML += `<p>${json_real_file["warm_up"][i]["exercise"]}</p>`;
+                    message.innerHTML += `<p>${json_real_file["warm_up"][i]["duration"]}</p>`;
+                    message.innerHTML += `<p>${json_real_file["warm_up"][i]["form_tip"]}</p>`;
+                    message.innerHTML += `+++++`;
+                }
+
+                message.innerHTML += `<br><br>`;
+
+                message.innerHTML += `<h3 style="width: 45%;">Main Workout:</h3>`;
+                for (let i = 0; i < json_real_file["main_workout"].length; i++) {
+                    message.innerHTML += `<p>${json_real_file["main_workout"][i]["exercise"]}</p>`;
+                    message.innerHTML += `<p>${json_real_file["main_workout"][i]["duration"]}</p>`;
+                    message.innerHTML += `<p>${json_real_file["main_workout"][i]["form_tip"]}</p>`;
+                    message.innerHTML += `+++++`;
+                }
+
+                message.innerHTML += `<br><br>`;
+
+                message.innerHTML += `<h3 style="width: 45%;">Cool Down:</h3>`;
+                for (let i = 0; i < json_real_file["cool_down"].length; i++) {
+                    message.innerHTML += `<p>${json_real_file["cool_down"][i]["exercise"]}</p>`;
+                    message.innerHTML += `<p>${json_real_file["cool_down"][i]["duration"]}</p>`;
+                    message.innerHTML += `<p>${json_real_file["cool_down"][i]["form_tip"]}</p>`;
+                    message.innerHTML += `+++++`;
+                }
+
+                message.innerHTML += `<br><br>`;
+                
+                
                 // Optionally update the UI
+                message.style.display = 'block';
                 workoutForm.style.display = 'none';
                 const workoutForm2 = document.querySelector('#workout-form2');
                 if (workoutForm2) {
@@ -97,12 +140,38 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(response => response.json())
             .then(result => {
-                console.log(result);
+                console.log(result["explanation"]);
+                document.querySelector('#content').style.display = 'none';
                 workoutForm2.style.display = 'none';
                 const content2 = document.querySelector('#content2');
                 if (content2) {
-                    content2.innerHTML = result;
+                    content2.innerHTML = result["explanation"];
                 }
+            });
+        }
+    }
+
+    const dietForm = document.querySelector('#diet-form');
+    if (dietForm) {
+        dietForm.onsubmit = (event) => {
+            event.preventDefault();
+            let meal_type = document.getElementsByName('meal_type')[0].value;
+
+            fetch('/api/ai/generate-meal-suggestion', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    meal_type: meal_type
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                console.log(result["suggestion"]);
+                document.querySelector('#diet-form').style.display = 'none';
+                document.querySelector('#intro-diet').style.display = 'block';
+                document.querySelector('#content11').innerHTML = result["suggestion"];
             });
         }
     }

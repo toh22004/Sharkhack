@@ -7,7 +7,6 @@
         <script src="/static/index.js"></script>
     </head>
     <body>
-        <h1>Welcome!</h1>
         <div id="main-interface">
             <h2>GymBro - Your Trusted Trainer</h2>
             <a href="/dashboard" class="btn btn-outline-primary" id="menu" style="margin: 18px;">Home</a>
@@ -27,7 +26,7 @@
           <h3>Workout</h3>
 
           <form id="workout-form" style="display: block;">
-              <input type="text" name="goal" style="font-size: 25px; margin-top: 3%;" placeholder="Goal: "><br>
+              <input type="text" name="goal" style="font-size: 25px; margin-top: 3%;" placeholder="Goal: (strength? speed?)"><br>
               <input type="text" name="equipment" style="font-size: 25px; margin-top: 3%;" placeholder="Equipment: "><br>
               <input type="text" name="mood" style="font-size: 25px; margin-top: 3%;" placeholder="Mood: "><br>
               <input type="text" name="focus" style="font-size: 25px; margin-top: 3%;" placeholder="Focus (muscle group): "><br>
@@ -35,19 +34,21 @@
               <input type="submit" value="Submit"><br><br>
           </form>
 
-          <p id="content" style="width: 45%;"></p>
+          <div id="content" style="width: 45%;"></div>
 
-          <form id="workout-form2" style="display: none;">
+          <form id="workout-form2" style="display: none; position: absolute; bottom: -50%;">
               <div style="font-size: 25px; margin-top: 3%;">
                   <label for="completed">Completed?</label>
-                  <select id="completed" name="completed" style="margin-right: 15px;">
+                  <span style="margin-right: 50px;"></span>
+                  <select id="completed" name="completed">
                       <option value="completed">Yes</option>
                       <option value="incompleted">No</option>
                     </select>
-              </div>
+              </div><br>
               <div style="font-size: 25px; margin-top: 3%;">
                   <label for="difficulty_rating">Difficulty</label>
-                  <select id="difficulty_rating" name="difficulty_rating" style="margin-right: 15px;">
+                  <span style="margin-right: 50px;"></span>
+                  <select id="difficulty_rating" name="difficulty_rating">
                       <option value="1">1</option>
                       <option value="2">2</option>
                       <option value="3">3</option>
@@ -59,9 +60,9 @@
                       <option value="9">9</option>
                       <option value="10">10</option>
                     </select>
-              </div>
-              <input type="text" name="notes" style="font-size: 25px; margin-top: 3%;" placeholder="Notes: "><br><br>
-              <input id="workout-start" type="submit" value="Finish workout!">
+              </div><br>
+              <input type="text" name="notes" style="font-size: 25px; margin-top: 3%;" placeholder="Notes: "><br><br><br>
+              <input id="workout-start" type="submit" value="Finish workout!"><br>
           </form>
 
           <p id="content2" style="width: 45%;"></p>

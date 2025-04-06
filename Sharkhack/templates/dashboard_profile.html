@@ -7,8 +7,6 @@
         <script src="/static/index.js"></script>
     </head>
     <body>
-        
-        <h1>Welcome!</h1>
         <div id="main-interface">
             <h2>GymBro - Your Trusted Trainer</h2>
             <a href="/dashboard" class="btn btn-outline-primary" id="menu" style="margin: 18px;">Home</a>
@@ -33,11 +31,17 @@
                 <h4>Height: {{ height_inches }}"</h4><br>
                 <h4>Activity Level: {{ h_activity_level }}</h4><br>
                 <h4>Fitness Goal: {{ h_fitness_goal }}</h4><br>
-                
+                <h4>Health Conditions: {{ h_health_conditions }}</h4><br>
+                <h4>Dietary Preferences: {{ h_dietary_restrictions }}</h4><br>
+                <h4>Allergies: {{ h_allergies }}</h4><br>
                 <a href="/dashboard/profile/update" class="btn btn-outline-primary" id="update" style="margin: 6px;">Update Profile</a><br>
-            {% else %}
+        
+        
+        
+                {% else %}
                 <h2>No user data found</h2><br>
           {% endif %}
       </div>
+
     </body>
     </html>
