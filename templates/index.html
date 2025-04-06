@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>GymBro</title>
+        <link rel="stylesheet" href="/static/styles.css">
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+        <script src="/static/index.js"></script>
+    </head>
+    <body>
+        <h1>Welcome!</h1>
+        <div id="main-interface">
+            <h2>GymBro - Your Trusted Trainer</h2>
+            <button class="btn btn-sm btn-outline-primary" id="menu" style="margin: 18px;">Main Menu</button>
+            <button class="btn btn-sm btn-outline-primary" id="workout" style="margin: 18px;">Workout</button>
+            <button class="btn btn-sm btn-outline-primary" id="diet" style="margin: 12px;">Diet</button>
+            <button class="btn btn-sm btn-outline-primary" id="profile" style="margin: 6px;">Profile</button>
+            <button class="btn btn-sm btn-outline-primary" id="about" style="margin: 18px;">About</button>
+            <a class="btn btn-sm btn-outline-primary" id="logout" style="margin: 6px;" href="/logout">Logout</a><br><br>
+        </div>
+
+        <br>
+
+        <!-- Menu -->
+
+        <div class="sections" id="menu-view" style="display: block;">
+            <h3>Menu</h3>
+            <h3 id="showcase1">GymBro is Your Digital Trainer</h3>
+            <img id="showcase4" src="https://imgs.search.brave.com/1waj7NzVf-Hj7aUdGjhHZM3CJ7QJvPOdM1dMd7dKItw/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9tZWRp/YS5nZXR0eWltYWdl/cy5jb20vaWQvMTA3/MDc1NTIxMi9waG90/by9tYW4td29ya291/dC1pbi1neW0uanBn/P3M9NjEyeDYxMiZ3/PTAmaz0yMCZjPWdH/Qm9GaGpLaXVPNERs/WE1JX0VOSnZyWXlN/SzFLbXMyUjFuNXJv/Y0FSZU09">
+            <h4 id="showcase3">GymBro implements the latest technologies from SWE and AI to enhance your fitness experience</h4>
+            <img id="showcase2" src="https://imgs.search.brave.com/aIl3CVpOm9H9WybeFhSPC7zirJe3wEKFAmidgujfN8o/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9tZWRp/YS5nZXR0eWltYWdl/cy5jb20vaWQvMTQz/MDkyMTY1OS9waG90/by9hcnRpZmljaWFs/LWludGVsbGlnZW5j/ZS1yb2JvdC1hbmQt/YmluYXJ5LmpwZz9z/PTYxMng2MTImdz0w/Jms9MjAmYz1OV3g2/aEhhMHZLUU41d0No/QTRYbFlkRnJaSkJv/dWVnaWRPLUdfQllM/bGhvPQ">
+        </div>
+
+        <!-- Workout -->
+
+        <div class="sections" id="workout-view" style="display: none;">
+            <h3>Workout</h3>
+
+            <form id="workout-form" style="display: block;">
+                <input type="text" name="goal" style="font-size: 25px; margin-top: 3%;" placeholder="Goal: "><br>
+                <input type="text" name="equipment" style="font-size: 25px; margin-top: 3%;" placeholder="Equipment: "><br>
+                <input type="text" name="mood" style="font-size: 25px; margin-top: 3%;" placeholder="Mood: "><br>
+                <input type="text" name="focus" style="font-size: 25px; margin-top: 3%;" placeholder="Focus (muscle group): "><br>
+                <input type="text" name="duration" style="font-size: 25px; margin-top: 3%;" placeholder="Duration (mins): "><br><br>
+                <input type="submit" value="Submit"><br><br>
+            </form>
+
+            <p id="content" style="width: 45%;"></p>
+
+            <form id="workout-form2" style="display: none;">
+                <div style="font-size: 25px; margin-top: 3%;">
+                    <label for="completed">Completed?</label>
+                    <select id="completed" name="completed" style="margin-right: 15px;">
+                        <option value="completed">Yes</option>
+                        <option value="incompleted">No</option>
+                      </select>
+                </div>
+                <div style="font-size: 25px; margin-top: 3%;">
+                    <label for="difficulty_rating">Difficulty</label>
+                    <select id="difficulty_rating" name="difficulty_rating" style="margin-right: 15px;">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9">9</option>
+                        <option value="10">10</option>
+                      </select>
+                </div>
+                <input type="text" name="notes" style="font-size: 25px; margin-top: 3%;" placeholder="Notes: "><br><br>
+                <input id="workout-start" type="submit" value="Finish workout!">
+            </form>
+
+        </div>
+
+        <!-- Diet -->
+
+        <div class="sections" id="diet-view" style="display: none;">
+            <h3>Diet</h3>
+            <h3>Based on your age, body mass, and current goals:</h3>
+            
+        </div>
+
+        <!-- Profile -->
+
+        <div class="sections" id="profile-view" style="display: none;">
+            {% if h_username %}
+                <h3>Hello, {{ h_username }}</h3><br>
+                <h4>Email: {{ h_email }}</h4><br>
+                <h4>Current weight: {{ h_weight }} lbs</h4><br>
+                <h4>Age: {{ h_age }}</h4><br>
+                <h4>Sex: {{ h_sex }}</h4><br>
+
+            {% else %}
+                <h2>No user data found</h2><br>
+            {% endif %}
+        </div>
+
+        <!-- About -->
+
+        <div class="sections" id="about-view" style="display: none;">
+            <h3>About</h3>
+            <h4 style="width: 45%;">GymBro is here to help you with your Fitness Ambitions.</h4>
+            <h5></h5>
+        </div>
+
+        
+    </body>
+</html>

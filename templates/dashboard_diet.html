@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>GymBro</title>
+        <link rel="stylesheet" href="/static/styles.css">
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+        <script src="/static/index.js"></script>
+    </head>
+    <body>
+        <div id="main-interface">
+            <h2>GymBro - Your Trusted Trainer</h2>
+            <a href="/dashboard" class="btn btn-outline-primary" id="menu" style="margin: 18px;">Home</a>
+            <a href="/dashboard/workout" class="btn btn-outline-primary" id="workout" style="margin: 18px;">Workout</a>
+            <a href="/dashboard/diet" class="btn btn-outline-primary" id="diet" style="margin: 12px;">Diet</a>
+            <a href="/dashboard/profile" class="btn btn-outline-primary" id="profile" style="margin: 6px;">Profile</a>
+            <a href="/dashboard/about" class="btn btn-outline-primary" id="about" style="margin: 18px;">About</a>
+            <a href="/logout" class="btn btn-outline-danger" id="logout" style="margin: 6px;">Logout</a><br><br>
+        </div>
+
+        <br>
+
+
+        <!-- Diet -->
+
+        <div class="sections" id="diet-view">
+          <h3>Diet</h3>
+
+          <form id="diet-form" style="display: block;">
+            <!-- Cook Food or Eat Out -->
+            <input type="text" name="meal_type" style="font-size: 25px; margin-top: 3%;" placeholder="Cuisine Type: "><br><br>
+            <input type="submit" value="Submit"><br><br>
+          </form>
+
+          <h4 id="intro-diet" style="display: none; line-height: 5em;">Based on your age, body mass, and current goals:</h4>
+          <!-- Suggestions in Protein, Carbs, and So On -->
+          <p id="content11" style="width: 45%; font-size: 1rem; white-space: pre-wrap; line-height: 1.8;"></p>
+
+
+
+      </div>
+
+
+
+    </body>
+    </html>

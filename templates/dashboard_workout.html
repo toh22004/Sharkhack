@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>GymBro</title>
+        <link rel="stylesheet" href="/static/styles.css">
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+        <script src="/static/index.js"></script>
+    </head>
+    <body>
+        <div id="main-interface">
+            <h2>GymBro - Your Trusted Trainer</h2>
+            <a href="/dashboard" class="btn btn-outline-primary" id="menu" style="margin: 18px;">Home</a>
+            <a href="/dashboard/workout" class="btn btn-outline-primary" id="workout" style="margin: 18px;">Workout</a>
+            <a href="/dashboard/diet" class="btn btn-outline-primary" id="diet" style="margin: 12px;">Diet</a>
+            <a href="/dashboard/profile" class="btn btn-outline-primary" id="profile" style="margin: 6px;">Profile</a>
+            <a href="/dashboard/about" class="btn btn-outline-primary" id="about" style="margin: 18px;">About</a>
+            <a href="/logout" class="btn btn-outline-danger" id="logout" style="margin: 6px;">Logout</a><br><br>
+        </div>
+
+        <br>
+
+
+         <!-- Workout -->
+
+         <div class="sections" id="workout-view">
+          <h3>Workout</h3>
+
+          <form id="workout-form" style="display: block;">
+              <input type="text" name="goal" style="font-size: 25px; margin-top: 3%;" placeholder="Goal: (strength? speed?)"><br>
+              <input type="text" name="equipment" style="font-size: 25px; margin-top: 3%;" placeholder="Equipment: "><br>
+              <input type="text" name="mood" style="font-size: 25px; margin-top: 3%;" placeholder="Mood: "><br>
+              <input type="text" name="focus" style="font-size: 25px; margin-top: 3%;" placeholder="Focus (muscle group): "><br>
+              <input type="text" name="duration" style="font-size: 25px; margin-top: 3%;" placeholder="Duration (mins): "><br><br>
+              <input type="submit" value="Submit"><br><br>
+          </form>
+
+          <div id="content" style="width: 45%;"></div>
+
+          <form id="workout-form2" style="display: none; position: absolute; bottom: -50%;">
+              <div style="font-size: 25px; margin-top: 3%;">
+                  <label for="completed">Completed?</label>
+                  <span style="margin-right: 50px;"></span>
+                  <select id="completed" name="completed">
+                      <option value="completed">Yes</option>
+                      <option value="incompleted">No</option>
+                    </select>
+              </div><br>
+              <div style="font-size: 25px; margin-top: 3%;">
+                  <label for="difficulty_rating">Difficulty</label>
+                  <span style="margin-right: 50px;"></span>
+                  <select id="difficulty_rating" name="difficulty_rating">
+                      <option value="1">1</option>
+                      <option value="2">2</option>
+                      <option value="3">3</option>
+                      <option value="4">4</option>
+                      <option value="5">5</option>
+                      <option value="6">6</option>
+                      <option value="7">7</option>
+                      <option value="8">8</option>
+                      <option value="9">9</option>
+                      <option value="10">10</option>
+                    </select>
+              </div><br>
+              <input type="text" name="notes" style="font-size: 25px; margin-top: 3%;" placeholder="Notes: "><br><br><br>
+              <input id="workout-start" type="submit" value="Finish workout!"><br>
+          </form>
+
+          <p id="content2" style="width: 45%;"></p>
+
+      </div>
+
+
+
+
+    </body>
+    </html>
