@@ -302,7 +302,8 @@ app = Flask(__name__)
 app.secret_key = "TestKey"
 ai_service = AIService()
 
-uri = "mongodb+srv://hetony2005:1111@users.jdmvwvu.mongodb.net/?appName=Users"
+uri = "mongodb+srv://hetony2005:1111@users.jdmvwvu.mongodb.net/?retryWrites=true&w=majority&appName=Users&tls=true"
+
 
 # --- Configuration ---
 SALT_LENGTH = 16  # Length of the salt in bytes (16 is common)
@@ -310,7 +311,8 @@ HASH_ALGORITHM = 'sha256' # Algorithm for PBKDF2
 ITERATIONS = 1000
 
 # Create a new client and connect to the server
-client = MongoClient(uri, server_api=ServerApi('1'))
+client = MongoClient(uri)
+
 # Send a ping to confirm a successful connection
 try:
     client.admin.command('ping')
